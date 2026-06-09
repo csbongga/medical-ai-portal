@@ -1,0 +1,19 @@
+{
+  "model_file": "knee_osteo_v2_final.keras",
+  "task": "osteoporosis 3-class (PROTOTYPE — knee X-ray, ไม่ใช่ข้อมูลโรงพยาบาลจริง)",
+  "classes": {
+    "0": "Normal",
+    "1": "Osteopenia",
+    "2": "Osteoporosis"
+  },
+  "input_size": [
+    224,
+    224,
+    3
+  ],
+  "preprocessing": "efficientnet.preprocess_input (ไม่หาร 255)",
+  "backbone": "EfficientNetB0 + 2-phase transfer learning, BatchNorm frozen",
+  "class_weight": "balanced ** 0.5 (softened)",
+  "test_accuracy": 0.734,
+  "note": "prototype validate pipeline เท่านั้น; osteopenia precision ต่ำ (0.571) ตามธรรมชาติคลาสกลาง"
+}

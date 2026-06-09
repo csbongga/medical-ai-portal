@@ -280,10 +280,10 @@
             </div>
 
             <!-- Osteoporosis Card -->
-            <div class="disease-card coming-soon" onclick="showComingSoon('osteoporosis')">
+            <div class="disease-card available card-loading" onclick="openSystem('osteoporosis')" id="osteoporosis-card">
                 <div class="disease-icon">🦴</div>
                 <h3 class="disease-title">กระดูกพรุน</h3>
-                <span class="disease-status status-coming-soon">⏳ เร็ว ๆ นี้</span>
+                <span class="disease-status status-available">✅ พร้อมใช้งาน</span>
                 <p class="disease-description">
                     ระบบวิเคราะห์ภาพเอ็กซ์เรย์กระดูก เพื่อตรวจหาและประเมินระดับ
                     ความรุนแรงของโรคกระดูกพรุน
@@ -292,10 +292,10 @@
                     <li>วิเคราะห์ภาพเอ็กซ์เรย์กระดูก</li>
                     <li>ประเมินความหนาแน่นกระดูก</li>
                     <li>วัดระดับความพรุน</li>
-                    <li>คำแนะนำการป้องกัน</li>
+                    <li>คำแนะนำจาก Claude AI</li>
                 </ul>
-                <button class="go-button" disabled>
-                    🔧 กำลังพัฒนา...
+                <button class="go-button" onclick="event.stopPropagation(); openSystem('osteoporosis')">
+                    🚀 เข้าสู่ระบบวินิจฉัยกระดูกพรุน
                 </button>
             </div>
 
@@ -349,6 +349,12 @@
                 case 'spine':
                     setTimeout(() => {
                         window.location.href = 'http://localhost:8002';
+                    }, 1000);
+                    break;
+
+                case 'osteoporosis':
+                    setTimeout(() => {
+                        window.location.href = 'http://localhost:8003';
                     }, 1000);
                     break;
             }

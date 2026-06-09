@@ -37,11 +37,15 @@ SKIN_METADATA_PATH = "skin-diagnosis-app/models/skin_model_info.json"
 SPINE_MODEL_PATH = "spine-diagnosis-app/models/best_spinal_model_final.keras"
 SPINE_METADATA_PATH = "spine-diagnosis-app/models/best_spinal_metadata.json"
 
+OSTEO_MODEL_PATH = "osteoporosis-diagnosis-app/models/knee_osteo_v2_final.keras"
+OSTEO_METADATA_PATH = "osteoporosis-diagnosis-app/models/knee_osteo_v2_meta.json"
+
 # Global state for loaded systems
 state: dict = {
     "dental": {},
     "skin": {},
-    "spine": {}
+    "spine": {},
+    "osteoporosis": {}
 }
 
 
@@ -242,6 +246,55 @@ class UnifiedClaudeService:
 - เป็นมิตรและให้ความช่วยเหลือ
 - หากมีข้อมูลบริบทการตรวจพบโรค สามารถอ้างอิงได้"""
 
+        self.osteo_system_prompt = """คุณเป็นระบบ AI ช่วยสนับสนุนการตัดสินใจของแพทย์โรคกระดูกและข้อ (Orthopedics) โดยมีหน้าที่ให้คำแนะนำทางการแพทย์เกี่ยวกับการประเมินภาวะกระดูกบาง (Osteopenia) และกระดูกพรุน (Osteoporosis)
+
+🔶 บทบาทและข้อจำกัดสำคัญ:
+- คุณเป็น "เครื่องมือช่วยตัดสินใจ" ไม่ใช่ "ตัวแทนแพทย์"
+- การตัดสินใจสุดท้ายเป็นของแพทย์เสมอ
+- ห้ามให้การวินิจฉัยขั้นสุดท้าย หรือฟันธงแทนแพทย์
+- **นี่เป็นโมเดลต้นแบบ (PROTOTYPE) ที่ใช้ข้อมูลภาพ X-ray เข่า (Knee X-ray)** ไม่ใช่ระบบตรวจวัดจริงในโรงพยาบาล
+
+🔶 ข้อมูลที่ต้องพิจารณาและความเสี่ยงสำคัญ:
+- ผลการทำนายมาจากโมเดล AI ที่มีความแม่นยำประมาณ 73%
+- **คำเตือนพิเศษ:** สำหรับระดับความเสี่ยง "กระดูกบาง" (Osteopenia) ตัวโมเดลมีค่าความแม่นยำ (Precision) ค่อนข้างต่ำ อยู่ที่ 0.571 ตามธรรมชาติของคลาสกลางที่แยกแยะได้ยากทางรังสีวิทยา
+- เมื่อตรวจพบระดับ Osteopenia หรือ Osteoporosis ให้เตือนแพทย์เพื่อส่งตรวจยืนยันความหนาแน่นของมวลกระดูกจริงด้วยเครื่อง DEXA scan (Dual-energy X-ray Absorptiometry) เสมอ ก่อนเริ่มการรักษาด้วยยาที่มีผลข้างเคียงสูง
+- ต้องแนะนำให้แพทย์ประเมินความเสี่ยงต่อการหกล้ม (Fall Risk) และประเมินอาการทางคลินิกเพิ่มเติม
+
+🔶 รูปแบบการตอบ:
+- ตอบเป็นภาษาไทยเท่านั้น
+- ใช้ภาษาทางการแพทย์ที่เหมาะสม
+- ตอบเป็น JSON format เท่านั้น ห้ามเพิ่มข้อความอื่นใดๆ
+
+🔶 JSON Structure ที่ต้องการ:
+{
+  "causes": "สาเหตุและข้อบ่งชี้ของความหนาแน่นมวลกระดูกเสื่อม รวมถึงข้อควรระวังเรื่องความแม่นยำต่ำในกลุ่มกระดูกบาง (Osteopenia) และความสำคัญของการส่งตรวจ DEXA scan",
+  "treatments": [
+    {"type": "warning|primary|secondary", "number": "!", "label": "หัวข้อ", "description": "รายละเอียดแนวทางรักษา การเสริมแคลเซียม/วิตามินดี หรือการป้องกันอุบัติเหตุ"}
+  ]
+}
+
+สำคัญมาก: ตอบเฉพาะ JSON object เท่านั้น ไม่ใส่ข้อความอื่นใดๆ เพิ่มเติม"""
+
+        self.osteo_chat_prompt = """คุณเป็น AI ผู้ช่วยแพทย์โรคกระดูกที่เป็นมิตรและช่วยเหลือ โดยมีหน้าที่ตอบคำถามและให้คำแนะนำเบื้องต้นเกี่ยวกับภาวะกระดูกบาง (Osteopenia) และกระดูกพรุน (Osteoporosis)
+
+🔶 บทบาทในการสนทนา:
+- คุณเป็น AI ผู้ช่วยที่สามารถสนทนาได้อย่างเป็นธรรมชาติและสุภาพ
+- ตอบคำถามเป็นภาษาไทยและใช้ภาษาที่เข้าใจง่ายและเป็นมิตร
+- หากเป็นคำถามทางการแพทย์ ให้คำแนะนำเบื้องต้นเกี่ยวกับสารอาหาร การปรับเปลี่ยนไลฟ์สไตล์ และแนะนำให้ปรึกษาแพทย์เฉพาะทางกระดูกและข้อ (Orthopedics)
+- หากเป็นการทักทายหรือคำถามทั่วไป ให้ตอบแบบเป็นมิตร
+
+🔶 ข้อสังเกตและข้อจำกัดของโมเดล:
+- โมเดล AI นี้เป็น Prototype ที่อิงตามภาพเอ็กซ์เรย์ข้อเข่า (Knee X-ray) ไม่ใช่ข้อมูลจริงในโรงพยาบาล
+- คลาสกระดูกบาง (Osteopenia) มีความแม่นยำต่ำ (0.571) หากผู้ใช้ถามเรื่องความเสี่ยง แนะนำให้เน้นย้ำเรื่องการตรวจยืนยันมวลกระดูกด้วย DEXA scan เสมอ
+- ไม่ให้การวินิจฉัยขั้นสุดท้าย
+- ตอบเป็นข้อความปกติ ไม่ใช่ JSON format
+
+🔶 ลักษณะการตอบ:
+- ตอบเป็นภาษาไทย
+- ใช้อีโมจิให้เหมาะสม
+- เป็นมิตรและให้ความช่วยเหลือ
+- หากมีข้อมูลบริบทการตรวจพบโรค สามารถอ้างอิงได้"""
+
     def generate_treatment_recommendation(
         self,
         disease_name: str,
@@ -263,6 +316,9 @@ class UnifiedClaudeService:
         elif system_type == "spine":
             system_prompt = self.spinal_system_prompt
             example_cause = "การเคลื่อนตัวของกระดูกสันหลังหรือการเสื่อมของข้อต่อ..."
+        elif system_type == "osteoporosis":
+            system_prompt = self.osteo_system_prompt
+            example_cause = "ความหนาแน่นมวลกระดูกลดลงตามวัยหรือการเสื่อมของข้อต่อเข่า..."
         else:
             system_prompt = self.dental_system_prompt
             example_cause = "การประเมินทางคลินิก..."
@@ -341,6 +397,8 @@ class UnifiedClaudeService:
             system_prompt = self.skin_chat_prompt
         elif system_type == "spine":
             system_prompt = self.spinal_chat_prompt
+        elif system_type == "osteoporosis":
+            system_prompt = self.osteo_chat_prompt
         else:
             system_prompt = self.dental_chat_prompt
 
@@ -376,7 +434,7 @@ class UnifiedClaudeService:
             return f"❌ เกิดข้อผิดพลาดในการเชื่อมต่อ Claude API: {str(e)}"
 
     def validate_image(self, image_bytes: bytes, is_dental: bool = True, media_type: str = "image/jpeg", system_type: str = None) -> Dict[str, Any]:
-        """Validate if uploaded image is relevant to dental X-ray, skin lesion, or spine X-ray"""
+        """Validate if uploaded image is relevant to dental X-ray, skin lesion, spine X-ray, or osteoporosis X-ray"""
         if system_type is None:
             system_type = "dental" if is_dental else "skin"
 
@@ -389,6 +447,9 @@ class UnifiedClaudeService:
         elif system_type == "spine":
             topic = "ภาพ X-ray กระดูกสันหลัง (Spine X-ray หรือ Spinal X-ray)"
             target = "Spine X-ray"
+        elif system_type == "osteoporosis":
+            topic = "ภาพ X-ray ข้อเข่าหรือกระดูก (Knee X-ray หรือ Bone X-ray)"
+            target = "Knee X-ray"
         else:
             topic = "ภาพทางการแพทย์"
             target = "Medical Image"
@@ -626,23 +687,70 @@ async def lifespan(app: FastAPI):
         "model_mode": spine_mode
     }
 
+    # Setup Osteoporosis System
+    print("Loading Osteoporosis ML Model...")
+    osteo_model = None
+    osteo_mode = "mock"
+    if Path(OSTEO_MODEL_PATH).exists():
+        try:
+            osteo_model = keras.models.load_model(OSTEO_MODEL_PATH)
+            osteo_mode = "real"
+            print(f"SUCCESS: Osteoporosis model loaded: {OSTEO_MODEL_PATH}")
+        except Exception as e:
+            print(f"ERROR: Failed to load osteoporosis model: {e}")
+    
+    if osteo_model is None:
+        print("INFO: Falling back to Osteoporosis mock model...")
+        osteo_model = MockModel(num_classes=3, is_dental=False)
+
+    try:
+        osteo_meta = load_metadata(OSTEO_METADATA_PATH)
+        osteo_raw_classes = osteo_meta["classes"]
+        osteo_idx_to_class = {}
+        osteo_names_map = {
+            "Normal": "มวลกระดูกปกติ (Normal)",
+            "Osteopenia": "กระดูกบาง (Osteopenia)",
+            "Osteoporosis": "กระดูกพรุน (Osteoporosis)"
+        }
+        for k, v in osteo_raw_classes.items():
+            osteo_idx_to_class[str(k)] = {
+                "code": v.upper(),
+                "name": osteo_names_map.get(v, v)
+            }
+    except Exception as e:
+        print(f"ERROR: Failed to load osteoporosis metadata: {e}")
+        osteo_idx_to_class = {
+            "0": {"code": "NORMAL", "name": "มวลกระดูกปกติ (Normal)"},
+            "1": {"code": "OSTEOPENIA", "name": "กระดูกบาง (Osteopenia)"},
+            "2": {"code": "OSTEOPOROSIS", "name": "กระดูกพรุน (Osteoporosis)"}
+        }
+
+    state["osteoporosis"] = {
+        "model": osteo_model,
+        "target_size": (osteo_model.input_shape[2], osteo_model.input_shape[1]),
+        "idx_to_class": osteo_idx_to_class,
+        "model_mode": osteo_mode
+    }
+
     print("\n" + "="*60)
     print("UNIFIED MEDICAL AI SERVER STARTED")
     print("="*60)
-    print("Unified Portal: http://localhost:9000/")
-    print("Dental System:  http://localhost:9000/dental/")
-    print("Skin System:    http://localhost:9000/skin/")
-    print("Spine System:   http://localhost:9000/spine/")
+    print("Unified Portal:  http://localhost:9000/")
+    print("Dental System:   http://localhost:9000/dental/")
+    print("Skin System:     http://localhost:9000/skin/")
+    print("Spine System:    http://localhost:9000/spine/")
+    print("Osteoporosis:    http://localhost:9000/osteoporosis/")
     print("="*60 + "\n")
     yield
     state["dental"].clear()
     state["skin"].clear()
     state["spine"].clear()
+    state["osteoporosis"].clear()
 
 
 app = FastAPI(
     title="Unified Medical AI Portal Server",
-    description="Unified API server hosting Dental, Skin, and Spine diagnostic systems.",
+    description="Unified API server hosting Dental, Skin, Spine, and Osteoporosis diagnostic systems.",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -667,6 +775,7 @@ async def get_portal():
         content = content.replace("http://localhost:8000", "/dental/")
         content = content.replace("http://localhost:8001", "/skin/")
         content = content.replace("http://localhost:8002", "/spine/")
+        content = content.replace("http://localhost:8003", "/osteoporosis/")
         return HTMLResponse(content=content)
     return HTMLResponse(content="<h1>AI Medical Portal</h1><p>Portal file not found.</p>", status_code=404)
 
@@ -702,6 +811,17 @@ async def get_spine_page():
             content = f.read()
         return HTMLResponse(content=content)
     return HTMLResponse(content="<h1>Spine System</h1><p>Static index.html not found.</p>", status_code=404)
+
+
+# ---- Osteoporosis Frontend ----
+@app.get("/osteoporosis/", response_class=HTMLResponse)
+async def get_osteoporosis_page():
+    osteo_html_path = Path("osteoporosis-diagnosis-app/static/index.html")
+    if osteo_html_path.exists():
+        with open(osteo_html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    return HTMLResponse(content="<h1>Osteoporosis System</h1><p>Static index.html not found.</p>", status_code=404)
 
 
 # ---- Generic Model Prediction Handler ----
@@ -1040,6 +1160,111 @@ async def spine_chat(request: ChatRequest):
 
 @app.get("/spine/claude-status")
 def spine_claude_status():
+    return claude_service.test_connection()
+
+
+# ==========================================
+# 🦴 OSTEOPOROSIS APIS (mounted under /osteoporosis/*)
+# ==========================================
+
+@app.get("/osteoporosis/health")
+async def osteoporosis_health():
+    return {"status": "ok", "mode": state["osteoporosis"]["model_mode"]}
+
+
+@app.post("/osteoporosis/validate-image")
+async def osteoporosis_validate_image(file: UploadFile = File(...)):
+    filename = file.filename.lower()
+    content_type = file.content_type.lower()
+    is_jpg = (
+        content_type in ["image/jpeg", "image/jpg"] or 
+        filename.endswith(".jpg") or 
+        filename.endswith(".jpeg")
+    )
+    if not is_jpg:
+        raise HTTPException(status_code=400, detail="ระบบรองรับเฉพาะรูปภาพประเภท JPG / JPEG เท่านั้น")
+        
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty file")
+    
+    validation_result = claude_service.validate_image(
+        image_bytes, 
+        system_type="osteoporosis", 
+        media_type=file.content_type
+    )
+    return JSONResponse(validation_result)
+
+
+@app.post("/osteoporosis/predict")
+async def osteoporosis_predict(file: UploadFile = File(...)):
+    filename = file.filename.lower()
+    content_type = file.content_type.lower()
+    is_jpg = (
+        content_type in ["image/jpeg", "image/jpg"] or 
+        filename.endswith(".jpg") or 
+        filename.endswith(".jpeg")
+    )
+    if not is_jpg:
+        raise HTTPException(status_code=400, detail="ระบบรองรับเฉพาะรูปภาพประเภท JPG / JPEG เท่านั้น")
+        
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty file")
+    
+    res = handle_prediction(image_bytes, "osteoporosis")
+    res["filename"] = file.filename
+    return JSONResponse(res)
+
+
+@app.post("/osteoporosis/treatment-advice")
+async def osteoporosis_treatment_advice(request: TreatmentRequest):
+    try:
+        rec = claude_service.generate_treatment_recommendation(
+            disease_name=request.disease_name,
+            disease_code=request.disease_code,
+            confidence=request.confidence,
+            patient_info=request.patient_info,
+            system_type="osteoporosis"
+        )
+        try:
+            rec_parsed = json.loads(rec)
+        except json.JSONDecodeError:
+            rec_parsed = rec
+
+        return ApiResponse(
+            success=True,
+            data={
+                "recommendation": rec_parsed,
+                "disease_code": request.disease_code,
+                "confidence": request.confidence
+            },
+            message="สร้างคำแนะนำการรักษาสำเร็จ"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/osteoporosis/chat")
+async def osteoporosis_chat(request: ChatRequest):
+    try:
+        resp = claude_service.chat_with_doctor(
+            question=request.question,
+            conversation_history=request.conversation_history,
+            context=request.context,
+            system_type="osteoporosis"
+        )
+        return ApiResponse(
+            success=True,
+            data={"response": resp, "question": request.question},
+            message="ตอบคำถามสำเร็จ"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/osteoporosis/claude-status")
+def osteoporosis_claude_status():
     return claude_service.test_connection()
 
 
