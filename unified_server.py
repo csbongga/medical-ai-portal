@@ -34,10 +34,14 @@ DENTAL_METADATA_PATH = "medical-diagnosis-app/models/best_root_model.json"
 SKIN_MODEL_PATH = "skin-diagnosis-app/models/best_model_final.keras"
 SKIN_METADATA_PATH = "skin-diagnosis-app/models/skin_model_info.json"
 
+SPINE_MODEL_PATH = "spine-diagnosis-app/models/best_spinal_model_final.keras"
+SPINE_METADATA_PATH = "spine-diagnosis-app/models/best_spinal_metadata.json"
+
 # Global state for loaded systems
 state: dict = {
     "dental": {},
-    "skin": {}
+    "skin": {},
+    "spine": {}
 }
 
 
@@ -78,7 +82,11 @@ class MockModel:
         if self.is_dental:
             probs = np.random.dirichlet([3] + [1] * (self.num_classes - 1))
         else:
-            probs = np.random.dirichlet([1, 1, 1, 1, 1, 4, 1])
+            alpha = [1] * self.num_classes
+            if self.num_classes > 0:
+                dominant_idx = min(3, self.num_classes - 1)
+                alpha[dominant_idx] = 4
+            probs = np.random.dirichlet(alpha)
         return [probs]
 
 
@@ -148,6 +156,35 @@ class UnifiedClaudeService:
 
 สำคัญมาก: ตอบเฉพาะ JSON object เท่านั้น ไม่ใส่ข้อความอื่นใดๆ เพิ่มเติม"""
 
+        self.spinal_system_prompt = """คุณเป็นระบบ AI ช่วยสนับสนุนการตัดสินใจของแพทย์โรคกระดูกสันหลัง โดยมีหน้าที่ให้คำแนะนำทางการแพทย์อ้างอิงหลักฐานทางวิทยาศาสตร์
+
+🔶 บทบาทและข้อจำกัด:
+- คุณเป็น "เครื่องมือช่วยตัดสินใจ" ไม่ใช่ "ตัวแทนแพทย์"
+- การตัดสินใจสุดท้ายเป็นของแพทย์เสมอ
+- ห้ามให้การวินิจฉัยขั้นสุดท้าย หรือฟันธงแทนแพทย์
+- ให้คำแนะนำที่เป็นกลางและอ้างอิงหลักฐานทางการแพทย์
+
+🔶 ข้อมูลที่ต้องพิจารณาและความเสี่ยงสำคัญ:
+- ผลการทำนายมาจากโมเดล AI ที่มีความแม่นยำประมาณ 74%
+- **คำเตือนพิเศษ:** อัตราการตรวจพบหรือ Recall ของคลาส "กระดูกสันหลังอักเสบติดเชื้อ" (infection) ค่อนข้างต่ำ (48%) เนื่องจากมีลักษณะทางรังสีวิทยาที่ซ้อนทับกันมากกับคลาส "กระดูกสันหลังเคลื่อน" (spondylolisthesis)
+- เมื่อวิเคราะห์ภาพที่โมเดลระบุว่าเป็น spondylolisthesis หรือ infection ให้แจ้งเตือนแพทย์เพื่อระมัดระวังเป็นพิเศษและแนะนำให้ยืนยันผลร่วมกับการตรวจทางคลินิก (เช่น ไข้, ค่าเม็ดเลือดขาว, ESR/CRP) หรือภาพ MRI เสมอ เพื่อป้องกันไม่ให้เกิดความล่าช้าในการรักษาโรคติดเชื้อ
+- ต้องแนะนำให้แพทย์ประเมินอาการทางคลินิกเพิ่มเติมเสมอ
+
+🔶 รูปแบบการตอบ:
+- ตอบเป็นภาษาไทยเท่านั้น
+- ใช้ภาษาทางการแพทย์ที่เหมาะสม
+- ตอบเป็น JSON format เท่านั้น ห้ามเพิ่มข้อความอื่นใดๆ
+
+🔶 JSON Structure ที่ต้องการ:
+{
+  "causes": "สาเหตุและข้อบ่งชี้ของโรคกระดูกสันหลัง รวมถึงข้อควรระวังเรื่องการวินิจฉัยแยกโรคกรณีมีโอกาสทับซ้อนทางคลินิก",
+  "treatments": [
+    {"type": "warning|primary|secondary", "number": "!", "label": "หัวข้อ", "description": "รายละเอียดคำแนะนำและการตรวจวินิจฉัยเพิ่มเติม"}
+  ]
+}
+
+สำคัญมาก: ตอบเฉพาะ JSON object เท่านั้น ไม่ใส่ข้อความอื่นใดๆ เพิ่มเติม"""
+
         self.dental_chat_prompt = """คุณเป็น AI ผู้ช่วยแพทย์ทันตกรรมที่เป็นมิตรและช่วยเหลือ โดยมีหน้าที่ตอบคำถามและให้คำแนะนำเบื้องต้น
 
 🔶 บทบาทในการสนทนา:
@@ -186,16 +223,49 @@ class UnifiedClaudeService:
 - เป็นมิตรและให้ความช่วยเหลือ
 - หากมีข้อมูลบริบทการตรวจพบโรค สามารถอ้างอิงได้"""
 
+        self.spinal_chat_prompt = """คุณเป็น AI ผู้ช่วยแพทย์โรคกระดูกสันหลังที่เป็นมิตรและช่วยเหลือ โดยมีหน้าที่ตอบคำถามและให้คำแนะนำเบื้องต้นเกี่ยวกับโรคกระดูกสันหลัง
+
+🔶 บทบาทในการสนทนา:
+- คุณเป็น AI ผู้ช่วยที่สามารถสนทนาได้อย่างเป็นธรรมชาติ
+- ตอบคำถามเป็นภาษาไทยและใช้ภาษาที่เข้าใจง่ายและเป็นมิตร
+- หากเป็นคำถามทางการแพทย์ ให้คำแนะนำเบื้องต้นเกี่ยวกับแนวทางสืบค้นและการรักษา และแนะนำให้ปรึกษาแพทย์เฉพาะทางกระดูกสันหลัง
+- หากเป็นการทักทายหรือคำถามทั่วไป ให้ตอบแบบเป็นมิตร
+
+🔶 ข้อสังเกตและข้อจำกัดของโมเดล:
+- โมเดล AI นี้มี Recall ต่ำในคลาส "กระดูกสันหลังอักเสบติดเชื้อ" (infection) ซึ่งมักสับสนกับ "กระดูกสันหลังเคลื่อน" (spondylolisthesis) หากมีการสอบถามเรื่องความผิดพลาดหรือเคสที่สงสัย ให้เน้นย้ำถึงความสำคัญของการแยกโรคด้วยภาพ MRI หรือการตรวจแล็บการอักเสบ (ESR/CRP/WBC)
+- ไม่ให้การวินิจฉัยขั้นสุดท้าย แนะนำให้ปรึกษาแพทย์กระดูกและข้อ (Orthopedics) เสมอ
+- ตอบเป็นข้อความปกติ ไม่ใช่ JSON format
+
+🔶 ลักษณะการตอบ:
+- ตอบเป็นภาษาไทย
+- ใช้อีโมจิให้เหมาะสม
+- เป็นมิตรและให้ความช่วยเหลือ
+- หากมีข้อมูลบริบทการตรวจพบโรค สามารถอ้างอิงได้"""
+
     def generate_treatment_recommendation(
         self,
         disease_name: str,
         disease_code: str,
         confidence: float,
         patient_info: str = None,
-        is_dental: bool = True
+        is_dental: bool = True,
+        system_type: str = None
     ) -> str:
-        system_prompt = self.dental_system_prompt if is_dental else self.skin_system_prompt
-        example_cause = "การอักเสบของโพรงประสาทฟัน..." if is_dental else "รอยโรคร่วมกับความเสี่ยงผิวหนัง..."
+        if system_type is None:
+            system_type = "dental" if is_dental else "skin"
+
+        if system_type == "dental":
+            system_prompt = self.dental_system_prompt
+            example_cause = "การอักเสบของโพรงประสาทฟัน..."
+        elif system_type == "skin":
+            system_prompt = self.skin_system_prompt
+            example_cause = "รอยโรคร่วมกับความเสี่ยงผิวหนัง..."
+        elif system_type == "spine":
+            system_prompt = self.spinal_system_prompt
+            example_cause = "การเคลื่อนตัวของกระดูกสันหลังหรือการเสื่อมของข้อต่อ..."
+        else:
+            system_prompt = self.dental_system_prompt
+            example_cause = "การประเมินทางคลินิก..."
         
         user_prompt = f"""โปรดวิเคราะห์และให้คำแนะนำการรักษาจากผลการทำนายต่อไปนี้:
 
@@ -259,9 +329,21 @@ class UnifiedClaudeService:
         question: str,
         conversation_history: List[Dict[str, str]] = None,
         context: Dict[str, Any] = None,
-        is_dental: bool = True
+        is_dental: bool = True,
+        system_type: str = None
     ) -> str:
-        system_prompt = self.dental_chat_prompt if is_dental else self.skin_chat_prompt
+        if system_type is None:
+            system_type = "dental" if is_dental else "skin"
+
+        if system_type == "dental":
+            system_prompt = self.dental_chat_prompt
+        elif system_type == "skin":
+            system_prompt = self.skin_chat_prompt
+        elif system_type == "spine":
+            system_prompt = self.spinal_chat_prompt
+        else:
+            system_prompt = self.dental_chat_prompt
+
         messages = []
 
         if context:
@@ -293,10 +375,23 @@ class UnifiedClaudeService:
         except Exception as e:
             return f"❌ เกิดข้อผิดพลาดในการเชื่อมต่อ Claude API: {str(e)}"
 
-    def validate_image(self, image_bytes: bytes, is_dental: bool = True, media_type: str = "image/jpeg") -> Dict[str, Any]:
-        """Validate if uploaded image is relevant to dental X-ray or skin lesion"""
-        topic = "ภาพ X-ray ทางทันตกรรม (Dental X-ray)" if is_dental else "ภาพถ่ายรอยโรคผิวหนัง (Skin lesion)"
-        target = "Dental X-ray" if is_dental else "Skin lesion"
+    def validate_image(self, image_bytes: bytes, is_dental: bool = True, media_type: str = "image/jpeg", system_type: str = None) -> Dict[str, Any]:
+        """Validate if uploaded image is relevant to dental X-ray, skin lesion, or spine X-ray"""
+        if system_type is None:
+            system_type = "dental" if is_dental else "skin"
+
+        if system_type == "dental":
+            topic = "ภาพ X-ray ทางทันตกรรม (Dental X-ray)"
+            target = "Dental X-ray"
+        elif system_type == "skin":
+            topic = "ภาพถ่ายรอยโรคผิวหนัง (Skin lesion)"
+            target = "Skin lesion"
+        elif system_type == "spine":
+            topic = "ภาพ X-ray กระดูกสันหลัง (Spine X-ray หรือ Spinal X-ray)"
+            target = "Spine X-ray"
+        else:
+            topic = "ภาพทางการแพทย์"
+            target = "Medical Image"
         
         user_prompt = f"""โปรดวิเคราะห์ภาพนี้และตอบเป็น JSON format เท่านั้น:
 
@@ -484,21 +579,70 @@ async def lifespan(app: FastAPI):
         "model_mode": skin_mode
     }
 
+    # Setup Spine System
+    print("Loading Spine ML Model...")
+    spine_model = None
+    spine_mode = "mock"
+    if Path(SPINE_MODEL_PATH).exists():
+        try:
+            spine_model = keras.models.load_model(SPINE_MODEL_PATH)
+            spine_mode = "real"
+            print(f"SUCCESS: Spine model loaded: {SPINE_MODEL_PATH}")
+        except Exception as e:
+            print(f"ERROR: Failed to load spine model: {e}")
+    
+    if spine_model is None:
+        print("INFO: Falling back to Spine mock model...")
+        spine_model = MockModel(num_classes=4, is_dental=False)
+
+    try:
+        spine_meta = load_metadata(SPINE_METADATA_PATH)
+        spine_raw_classes = spine_meta["classes"]
+        spine_idx_to_class = {}
+        spine_names_map = {
+            "infection": "กระดูกสันหลังอักเสบติดเชื้อ (Spinal Infection)",
+            "normal": "กระดูกสันหลังปกติ (Normal Spine)",
+            "spondyloarthropathy": "กลุ่มโรคข้อกระดูกสันหลังอักเสบ (Spondyloarthropathy)",
+            "spondylolisthesis": "กระดูกสันหลังเคลื่อน (Spondylolisthesis)"
+        }
+        for k, v in spine_raw_classes.items():
+            spine_idx_to_class[str(k)] = {
+                "code": v.upper(),
+                "name": spine_names_map.get(v, v)
+            }
+    except Exception as e:
+        print(f"ERROR: Failed to load spine metadata: {e}")
+        spine_idx_to_class = {
+            "0": {"code": "INFECTION", "name": "กระดูกสันหลังอักเสบติดเชื้อ (Spinal Infection)"},
+            "1": {"code": "NORMAL", "name": "กระดูกสันหลังปกติ (Normal Spine)"},
+            "2": {"code": "SPONDYLOARTHROPATHY", "name": "กลุ่มโรคข้อกระดูกสันหลังอักเสบ (Spondyloarthropathy)"},
+            "3": {"code": "SPONDYLOLISTHESIS", "name": "กระดูกสันหลังเคลื่อน (Spondylolisthesis)"}
+        }
+
+    state["spine"] = {
+        "model": spine_model,
+        "target_size": (spine_model.input_shape[2], spine_model.input_shape[1]),
+        "idx_to_class": spine_idx_to_class,
+        "model_mode": spine_mode
+    }
+
     print("\n" + "="*60)
     print("UNIFIED MEDICAL AI SERVER STARTED")
     print("="*60)
     print("Unified Portal: http://localhost:9000/")
     print("Dental System:  http://localhost:9000/dental/")
     print("Skin System:    http://localhost:9000/skin/")
+    print("Spine System:   http://localhost:9000/spine/")
     print("="*60 + "\n")
     yield
     state["dental"].clear()
     state["skin"].clear()
+    state["spine"].clear()
 
 
 app = FastAPI(
     title="Unified Medical AI Portal Server",
-    description="Unified API server hosting Dental and Skin diagnostic systems.",
+    description="Unified API server hosting Dental, Skin, and Spine diagnostic systems.",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -522,6 +666,7 @@ async def get_portal():
         # Update portal link redirection to use unified server endpoints
         content = content.replace("http://localhost:8000", "/dental/")
         content = content.replace("http://localhost:8001", "/skin/")
+        content = content.replace("http://localhost:8002", "/spine/")
         return HTMLResponse(content=content)
     return HTMLResponse(content="<h1>AI Medical Portal</h1><p>Portal file not found.</p>", status_code=404)
 
@@ -546,6 +691,17 @@ async def get_skin_page():
             content = f.read()
         return HTMLResponse(content=content)
     return HTMLResponse(content="<h1>Skin System</h1><p>Static index.html not found.</p>", status_code=404)
+
+
+# ---- Spine Frontend ----
+@app.get("/spine/", response_class=HTMLResponse)
+async def get_spine_page():
+    spine_html_path = Path("spine-diagnosis-app/static/index.html")
+    if spine_html_path.exists():
+        with open(spine_html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    return HTMLResponse(content="<h1>Spine System</h1><p>Static index.html not found.</p>", status_code=404)
 
 
 # ---- Generic Model Prediction Handler ----
@@ -779,6 +935,111 @@ async def skin_chat(request: ChatRequest):
 
 @app.get("/skin/claude-status")
 def skin_claude_status():
+    return claude_service.test_connection()
+
+
+# ==========================================
+# 🦴 SPINE APIS (mounted under /spine/*)
+# ==========================================
+
+@app.get("/spine/health")
+async def spine_health():
+    return {"status": "ok", "mode": state["spine"]["model_mode"]}
+
+
+@app.post("/spine/validate-image")
+async def spine_validate_image(file: UploadFile = File(...)):
+    filename = file.filename.lower()
+    content_type = file.content_type.lower()
+    is_jpg = (
+        content_type in ["image/jpeg", "image/jpg"] or 
+        filename.endswith(".jpg") or 
+        filename.endswith(".jpeg")
+    )
+    if not is_jpg:
+        raise HTTPException(status_code=400, detail="ระบบรองรับเฉพาะรูปภาพประเภท JPG / JPEG เท่านั้น")
+        
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty file")
+    
+    validation_result = claude_service.validate_image(
+        image_bytes, 
+        system_type="spine", 
+        media_type=file.content_type
+    )
+    return JSONResponse(validation_result)
+
+
+@app.post("/spine/predict")
+async def spine_predict(file: UploadFile = File(...)):
+    filename = file.filename.lower()
+    content_type = file.content_type.lower()
+    is_jpg = (
+        content_type in ["image/jpeg", "image/jpg"] or 
+        filename.endswith(".jpg") or 
+        filename.endswith(".jpeg")
+    )
+    if not is_jpg:
+        raise HTTPException(status_code=400, detail="ระบบรองรับเฉพาะรูปภาพประเภท JPG / JPEG เท่านั้น")
+        
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty file")
+    
+    res = handle_prediction(image_bytes, "spine")
+    res["filename"] = file.filename
+    return JSONResponse(res)
+
+
+@app.post("/spine/treatment-advice")
+async def spine_treatment_advice(request: TreatmentRequest):
+    try:
+        rec = claude_service.generate_treatment_recommendation(
+            disease_name=request.disease_name,
+            disease_code=request.disease_code,
+            confidence=request.confidence,
+            patient_info=request.patient_info,
+            system_type="spine"
+        )
+        try:
+            rec_parsed = json.loads(rec)
+        except json.JSONDecodeError:
+            rec_parsed = rec
+
+        return ApiResponse(
+            success=True,
+            data={
+                "recommendation": rec_parsed,
+                "disease_code": request.disease_code,
+                "confidence": request.confidence
+            },
+            message="สร้างคำแนะนำการรักษาสำเร็จ"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/spine/chat")
+async def spine_chat(request: ChatRequest):
+    try:
+        resp = claude_service.chat_with_doctor(
+            question=request.question,
+            conversation_history=request.conversation_history,
+            context=request.context,
+            system_type="spine"
+        )
+        return ApiResponse(
+            success=True,
+            data={"response": resp, "question": request.question},
+            message="ตอบคำถามสำเร็จ"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/spine/claude-status")
+def spine_claude_status():
     return claude_service.test_connection()
 
 

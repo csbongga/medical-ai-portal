@@ -1,0 +1,32 @@
+{
+  "model_name": "spinal_xray_classifier",
+  "version": "1.0",
+  "input_format": {
+    "image_size": [
+      224,
+      224
+    ],
+    "channels": 3,
+    "pixel_range": "0-255 (raw, EfficientNet handles preprocessing)"
+  },
+  "classes": {
+    "0": "infection",
+    "1": "normal",
+    "2": "spondyloarthropathy",
+    "3": "spondylolisthesis"
+  },
+  "num_classes": 4,
+  "test_accuracy": 0.7396,
+  "per_class_recall": {
+    "infection": 0.48,
+    "normal": 0.75,
+    "spondyloarthropathy": 0.66,
+    "spondylolisthesis": 0.9
+  },
+  "notes": [
+    "Trained with class weights to handle imbalance",
+    "BatchNorm layers frozen during fine-tuning",
+    "infection recall is lower due to visual overlap with spondylolisthesis",
+    "Recommend Claude API assistance for infection interpretation"
+  ]
+}

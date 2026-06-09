@@ -300,22 +300,22 @@
             </div>
 
             <!-- Spine Card -->
-            <div class="disease-card coming-soon" onclick="showComingSoon('spine')">
+            <div class="disease-card available card-loading" onclick="openSystem('spine')" id="spine-card">
                 <div class="disease-icon">🦴</div>
                 <h3 class="disease-title">กระดูกสันหลัง</h3>
-                <span class="disease-status status-coming-soon">⏳ เร็ว ๆ นี้</span>
+                <span class="disease-status status-available">✅ พร้อมใช้งาน</span>
                 <p class="disease-description">
                     ระบบวิเคราะห์ภาพเอ็กซ์เรย์กระดูกสันหลัง เพื่อตรวจหาความผิดปกติ
-                    และปัญหาโครงสร้างของกระดูกสันหลัง
+                    และปัญหาโครงสร้างของกระดูกสันหลัง ด้วยเทคโนโลยี AI ที่แม่นยำ
                 </p>
                 <ul class="card-features">
                     <li>วิเคราะห์ภาพกระดูกสันหลัง</li>
-                    <li>ตรวจหาความผิดปกติ</li>
-                    <li>ประเมินการเบี่ยงเบน</li>
-                    <li>แนะนำการบำบัด</li>
+                    <li>ตรวจหาความผิดปกติ 4 ชนิด</li>
+                    <li>คำแนะนำจาก Claude AI</li>
+                    <li>รองรับระบบแชทถามตอบ</li>
                 </ul>
-                <button class="go-button" disabled>
-                    🔧 กำลังพัฒนา...
+                <button class="go-button" onclick="event.stopPropagation(); openSystem('spine')">
+                    🚀 เข้าสู่ระบบวินิจฉัยกระดูกสันหลัง
                 </button>
             </div>
         </div>
@@ -343,6 +343,12 @@
                 case 'dental':
                     setTimeout(() => {
                         window.location.href = 'http://localhost:8000';
+                    }, 1000);
+                    break;
+
+                case 'spine':
+                    setTimeout(() => {
+                        window.location.href = 'http://localhost:8002';
                     }, 1000);
                     break;
             }
