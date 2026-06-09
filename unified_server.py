@@ -942,21 +942,40 @@ def handle_prediction(image_bytes: bytes, sys_key: str):
         raise HTTPException(status_code=422, detail=f"Cannot process image: {e}")
 
     probs = model.predict(x, verbose=0)[0]
-    predictions = sorted(
-        [
-            {
-                "rank": 0,
-                "index": int(i),
-                "code": idx_to_class.get(str(i), {}).get("code", str(i)),
-                "name": idx_to_class.get(str(i), {}).get("name", str(i)),
-                "probability": round(float(probs[i]), 6),
-                "probability_pct": round(float(probs[i]) * 100, 2),
-            }
-            for i in range(len(probs))
-        ],
-        key=lambda val: val["probability"],
-        reverse=True,
-    )
+    
+    # Handle single sigmoid output for binary classification (e.g. Stroke model)
+    if len(probs) == 1:
+        p1 = float(probs[0])
+        p0 = 1.0 - p1
+        probs = np.array([p0, p1], dtype=np.float32)
+
+    # Sort normally first
+    predictions_list = [
+        {
+            "rank": 0,
+            "index": int(i),
+            "code": idx_to_class.get(str(i), {}).get("code", str(i)),
+            "name": idx_to_class.get(str(i), {}).get("name", str(i)),
+            "probability": round(float(probs[i]), 6),
+            "probability_pct": round(float(probs[i]) * 100, 2),
+        }
+        for i in range(len(probs))
+    ]
+
+    # Special threshold sorting for Stroke model
+    if sys_key == "stroke":
+        # Index 1 is Stroke, Index 0 is Normal
+        stroke_prob = float(probs[1])
+        if stroke_prob >= 0.3:
+            # Sort Stroke first
+            predictions = sorted(predictions_list, key=lambda x: x["index"] == 1, reverse=True)
+        else:
+            # Sort Normal first
+            predictions = sorted(predictions_list, key=lambda x: x["index"] == 0, reverse=True)
+    else:
+        # Standard sort by probability
+        predictions = sorted(predictions_list, key=lambda val: val["probability"], reverse=True)
+
     for rank, item in enumerate(predictions, 1):
         item["rank"] = rank
 
