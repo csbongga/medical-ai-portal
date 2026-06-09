@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>ระบบตรวจวินิจฉัยโรคผิวหนัง</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#8b5a3c;--navy2:#a0725a;--cyan:#e67e22;--blue:#d35400;
+  --green:#27ae60;--orange:#f39c12;--red:#e74c3c;
+  --g1:#f8f6f3;--g2:#e8ddd4;--g3:#c19a7a;--g4:#8b5a3c;--text:#5d4037;
+}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans Thai",sans-serif;color:var(--text)}
+
+/* ── TOP NAV ── */
+.topnav{height:52px;background:var(--navy);display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06)}
+.btn-back{display:flex;align-items:center;gap:5px;background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.28);border-radius:6px;padding:6px 11px;font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-back:hover{background:rgba(255,255,255,.08)}
+.nav-title{display:flex;align-items:center;gap:7px;color:#fff;font-size:.92rem;font-weight:700}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);animation:pdot 2s infinite}
+@keyframes pdot{0%,100%{box-shadow:0 0 0 2px rgba(0,180,216,.3)}50%{box-shadow:0 0 0 5px rgba(0,180,216,.1)}}
+.nav-spacer{flex:1}
+.nav-input{height:32px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:6px;color:#fff;font-size:.78rem;padding:0 9px;width:128px;outline:none}
+.nav-input::placeholder{color:rgba(255,255,255,.4)}
+.nav-input:focus{border-color:var(--cyan)}
+.nav-time{color:rgba(255,255,255,.65);font-size:.78rem;white-space:nowrap;margin-left:4px}
+
+/* ── LAYOUT ── */
+.main{display:flex;height:calc(100vh - 52px);overflow:hidden}
+
+/* ── LEFT VIEWER ── */
+.vpanel{width:57%;min-width:380px;background:#111;display:flex;flex-direction:column;border-right:1px solid #000}
+.vhead{background:#1d1d1d;padding:7px 13px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #2a2a2a;flex-shrink:0}
+.vhead-icon{width:27px;height:27px;background:var(--navy);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+.vhead h2{font-size:.75rem;font-weight:700;color:#fff;letter-spacing:.07em}
+.vcanvas{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#0a0a0a;cursor:pointer}
+.vcanvas:hover .upload-hint{opacity:1}
+.upload-hint{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.55);opacity:0;transition:opacity .2s;pointer-events:none;color:#fff;font-size:.85rem;gap:8px}
+#xray-img{max-width:100%;max-height:100%;object-fit:contain;display:none}
+.vempty{text-align:center;color:#3a3a3a;font-size:.88rem;pointer-events:none}
+.vempty span{font-size:2.8rem;display:block;margin-bottom:10px}
+.vlabel-tl{position:absolute;top:10px;left:12px;color:#555;font-size:.68rem;font-weight:700;letter-spacing:.08em}
+.vlabel-tr{position:absolute;top:10px;right:12px;color:var(--green);font-size:.68rem;font-weight:700;letter-spacing:.04em;display:none}
+.vlabel-tr.show{display:block}
+.vbrand{position:absolute;bottom:9px;left:12px;color:#333;font-size:.62rem;font-weight:600}
+.vbtn-row{display:flex;border-top:1px solid #2a2a2a;flex-shrink:0}
+.vbtn{flex:1;height:42px;border:none;cursor:pointer;font-size:.8rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+.vbtn.on{background:var(--cyan);color:#fff}
+.vbtn.off{background:#1d1d1d;color:#888;border-left:1px solid #2a2a2a}
+.vbtn.off:hover{background:#252525;color:#bbb}
+.upbar{height:44px;background:#181818;border-top:1px solid #2a2a2a;display:flex;align-items:center;justify-content:center;gap:8px;color:#777;font-size:.83rem;cursor:pointer;transition:background .15s;flex-shrink:0}
+.upbar:hover{background:#222;color:#aaa}
+#file-input{display:none}
+
+/* ── RIGHT ANALYSIS ── */
+.apanel{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#fff}
+.ahead{background:var(--navy);padding:7px 15px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.ahead-icon{width:27px;height:27px;background:rgba(0,180,216,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+.ahead h2{font-size:.75rem;font-weight:700;color:#fff;letter-spacing:.07em}
+.abody{flex:1;overflow-y:auto;padding:15px}
+
+/* mode tabs */
+.tabs{display:flex;margin-bottom:14px}
+.tab{flex:1;height:40px;border:none;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .2s,color .2s}
+.tab.on{background:var(--cyan);color:#fff}
+.tab.off{background:var(--g1);color:var(--g4);border:1.5px solid var(--g2)}
+.tab.off:hover{background:var(--g2)}
+
+/* confidence */
+.conf-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.conf-lbl{font-size:.7rem;font-weight:700;letter-spacing:.07em;color:var(--g3)}
+.conf-pct{font-size:.98rem;font-weight:800;color:var(--text)}
+.conf-track{height:8px;background:var(--g2);border-radius:99px;overflow:hidden;margin-bottom:14px}
+.conf-bar{height:100%;background:var(--green);border-radius:99px;width:0%;transition:width .8s cubic-bezier(.4,0,.2,1)}
+
+/* disease */
+.dis-lbl{font-size:.7rem;font-weight:700;letter-spacing:.07em;color:var(--g3);margin-bottom:5px}
+.dis-name{font-size:1.18rem;font-weight:800;line-height:1.3;margin-bottom:3px}
+.dis-en{font-size:.76rem;color:var(--g3);margin-bottom:13px}
+
+/* info row */
+.irow{display:flex;gap:9px;margin-bottom:13px}
+.ibox{flex:1;background:var(--g1);border-radius:8px;padding:9px 11px;border:1px solid var(--g2)}
+.ibox-lbl{font-size:.67rem;font-weight:700;letter-spacing:.06em;color:var(--g3);margin-bottom:5px}
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:4px 9px;font-size:.78rem;font-weight:700}
+.badge-red{background:#fee2e2;color:#b91c1c}
+.badge-orange{background:#fef3c7;color:#d97706}
+.badge-green{background:#dcfce7;color:#16a34a}
+
+/* causes */
+.causes-lbl{font-size:.7rem;font-weight:700;letter-spacing:.07em;color:var(--g3);margin-bottom:5px}
+.causes-txt{font-size:.81rem;color:var(--g4);line-height:1.65;margin-bottom:14px}
+
+/* treatment */
+.tx-head{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.tx-icon{width:25px;height:25px;background:#fff3cd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.82rem}
+.tx-title{font-size:.76rem;font-weight:800;letter-spacing:.07em;color:var(--text)}
+.glist{display:flex;flex-direction:column;gap:7px}
+.gitem{display:flex;align-items:flex-start;gap:9px;border-radius:8px;padding:9px 11px;font-size:.8rem;line-height:1.55}
+.gitem.warning{background:#fffbeb;border:1px solid #fde68a}
+.gitem.primary{background:#eff6ff;border:1px solid #bfdbfe}
+.gitem.secondary{background:#f0fdf4;border:1px solid #bbf7d0}
+.gnum{width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;flex-shrink:0;margin-top:2px}
+.warning .gnum{background:#f59e0b;color:#fff}
+.primary .gnum{background:#3b82f6;color:#fff}
+.secondary .gnum{background:#22c55e;color:#fff}
+.gtext{color:var(--g4)}
+.gtext strong{color:var(--text)}
+
+/* disclaimer */
+.disc{margin-top:14px;padding:9px 11px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.72rem;color:#92400e;line-height:1.5}
+
+/* classify bars */
+.pitem{margin-bottom:9px}
+.ph{display:flex;justify-content:space-between;margin-bottom:3px}
+.pname{font-size:.78rem;font-weight:600}
+.pcode{font-size:.68rem;background:var(--g2);color:var(--g4);padding:1px 5px;border-radius:4px;margin-right:5px}
+.ppct{font-size:.78rem;font-weight:700;color:var(--g4)}
+.ptrack{height:9px;background:var(--g2);border-radius:99px;overflow:hidden}
+.pbar{height:100%;border-radius:99px;transition:width .7s cubic-bezier(.4,0,.2,1)}
+.pbar.r1{background:var(--blue)}
+.pbar.r2{background:#5b9bd5}
+.pbar.rn{background:var(--g2)}
+
+/* empty / loading */
+#empty-state{text-align:center;padding:55px 20px;color:var(--g3)}
+#empty-state .ei{font-size:2.8rem;margin-bottom:12px}
+#empty-state p{font-size:.88rem}
+#loading{display:none;text-align:center;padding:55px 20px}
+.spinner{width:38px;height:38px;border:4px solid var(--g2);border-top-color:var(--cyan);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.err-box{background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;padding:11px 14px;color:#b91c1c;font-size:.82rem;margin-bottom:11px;display:none}
+
+/* chat styles */
+.chat-message{margin-bottom:12px;padding:8px 12px;border-radius:8px;font-size:.85rem;line-height:1.4}
+.chat-user{background:var(--cyan);color:#fff;margin-left:20px;border-bottom-right-radius:2px}
+.chat-claude{background:#fff;border:1px solid var(--g2);margin-right:20px;border-bottom-left-radius:2px}
+.chat-claude strong{color:var(--text)}
+.btn-refresh{transition:background .2s}
+.btn-refresh:hover{background:var(--blue)!important}
+#chat-input{transition:border-color .2s}
+#chat-input:focus{border-color:var(--cyan)}
+#chat-send:hover{background:var(--blue)}
+
+/* responsive */
+@media(max-width:760px){
+  .main{flex-direction:column}
+  .vpanel{width:100%;min-width:unset;height:48vh}
+  .apanel{height:52vh}
+}
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <button class="btn-back" onclick="goToHomePage()">&#9664; หน้าแรก</button>
+  <div class="nav-title"><span class="nav-dot"></span>ระบบตรวจวินิจฉัยโรคผิวหนัง &#x1F52C;</div>
+  <div class="nav-spacer"></div>
+  <div class="nav-time" id="clock"></div>
+</nav>
+
+<div class="main">
+
+  <!-- LEFT -->
+  <div class="vpanel">
+    <div class="vhead">
+      <div class="vhead-icon">&#128247;</div>
+      <h2>MEDICAL IMAGE VIEWER</h2>
+    </div>
+
+    <div class="vcanvas" id="vcanvas" onclick="document.getElementById('file-input').click()">
+      <span class="vlabel-tl">SKIN LESION</span>
+      <span class="vlabel-tr" id="vlabel-tr"></span>
+      <div class="vempty" id="vempty"><span>&#129668;</span>ยังไม่มีภาพผิวหนัง</div>
+      <img id="xray-img" src="" alt="X-ray"/>
+      <div class="upload-hint">&#128193; คลิกเพื่อเลือกภาพ</div>
+      <div class="vbrand">AI Medical Support v0.1</div>
+    </div>
+
+    <div class="vbtn-row">
+      <button class="vbtn on" id="btn-orig" onclick="setViewMode('orig',event)">&#128203; ภาพต้นฉบับ</button>
+      <button class="vbtn off" id="btn-info" onclick="setViewMode('info',event)">&#128161; ข้อมูลเพิ่มเติม</button>
+    </div>
+
+    <div class="upbar" onclick="document.getElementById('file-input').click()">
+      &#128193; เลือกภาพผิวหนัง (JPG / JPEG)
+    </div>
+    <input type="file" id="file-input" accept=".jpg, .jpeg, image/jpeg" onchange="onFile(event)"/>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="apanel">
+    <div class="ahead">
+      <div class="ahead-icon">&#9889;</div>
+      <h2>AI ANALYSIS &amp; DIAGNOSIS</h2>
+    </div>
+
+    <div class="abody">
+
+      <div class="tabs" id="tabs" style="display:none">
+        <button class="tab off" id="tab-classify" onclick="switchTab('classify')">&#8862; Classify — ดูความน่าจะเป็นทั้ง 7 คลาส</button>
+        <button class="tab off" id="tab-chat" onclick="switchTab('chat')">&#128172; Chat — สนทนากับ Claude</button>
+      </div>
+
+      <div id="empty-state">
+        <div class="ei">&#128300;</div>
+        <p>เลือกภาพผิวหนังทางซ้าย<br/>เพื่อเริ่มการวิเคราะห์</p>
+      </div>
+
+      <div id="loading"><div class="spinner"></div><div style="color:var(--g3);font-size:.88rem">กำลังวิเคราะห์ภาพ...</div></div>
+
+      <!-- DETECT VIEW -->
+      <div id="detect-view" style="display:none">
+        <div class="err-box" id="err-box"></div>
+        <div class="conf-row">
+          <span class="conf-lbl">MODEL CONFIDENCE</span>
+          <span class="conf-pct" id="conf-pct">—</span>
+        </div>
+        <div class="conf-track"><div class="conf-bar" id="conf-bar"></div></div>
+
+        <div class="dis-lbl">โรคที่ตรวจพบ (DETECTED DISEASE)</div>
+        <div class="dis-name" id="dis-name-th"></div>
+        <div class="dis-en"   id="dis-name-en"></div>
+
+        <div class="irow">
+          <div class="ibox">
+            <div class="ibox-lbl">ระดับอาการ (SEVERITY)</div>
+            <span class="badge" id="sev-badge"></span>
+          </div>
+        </div>
+
+        <div class="causes-lbl">สาเหตุ / ข้อบ่งชี้ (CAUSES / INDICATIONS)</div>
+        <div class="causes-txt" id="causes-txt"></div>
+
+        <div class="tx-head">
+          <div class="tx-icon">&#128214;</div>
+          <div class="tx-title">TREATMENT GUIDELINE</div>
+        </div>
+        <div class="glist" id="glist"></div>
+
+        <div class="disc">&#9888;&#65039; ผลลัพธ์นี้เป็นข้อมูลประกอบการตัดสินใจของแพทย์เท่านั้น ไม่ใช้วินิจฉัยขั้นสุดท้าย</div>
+      </div>
+
+      <!-- CLASSIFY VIEW -->
+      <div id="classify-view" style="display:none">
+        <div class="conf-row" style="margin-bottom:12px">
+          <span class="conf-lbl">ความน่าจะเป็นทั้ง 7 คลาส</span>
+        </div>
+        <div id="prob-list"></div>
+      </div>
+
+
+      <!-- CHAT VIEW -->
+      <div id="chat-view" style="display:none">
+        <div class="conf-row" style="margin-bottom:12px">
+          <span class="conf-lbl">สนทนากับ Claude AI</span>
+        </div>
+
+        <!-- Chat Messages -->
+        <div id="chat-messages" style="background:var(--g1);border-radius:8px;height:300px;overflow-y:auto;padding:10px;margin-bottom:12px;border:1px solid var(--g2)">
+          <div class="chat-welcome" style="color:var(--g3);text-align:center;padding:20px;font-size:.85rem">
+            👋 สวัสดีครับ ผมเป็น AI ช่วยเหลือแพทย์ผิวหนัง<br/>
+            มีคำถามเกี่ยวกับการวินิจฉัยโรคผิวหนังหรือการรักษาไหมครับ?
+          </div>
+        </div>
+
+        <!-- Chat Input -->
+        <div style="display:flex;gap:8px">
+          <input type="text" id="chat-input" placeholder="พิมพ์คำถาม..." style="flex:1;padding:8px 12px;border:1.5px solid var(--g2);border-radius:6px;font-size:.85rem;outline:none">
+          <button id="chat-send" onclick="sendChatMessage()" style="background:var(--cyan);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:.85rem;cursor:pointer;white-space:nowrap">ส่ง</button>
+        </div>
+
+        <div id="chat-loading" style="display:none;text-align:center;padding:10px;color:var(--g3);font-size:.8rem">
+          <div class="spinner" style="width:16px;height:16px;margin:0 auto 4px"></div>
+          Claude กำลังตอบ...
+        </div>
+      </div>
+
+    </div><!-- /abody -->
+  </div><!-- /apanel -->
+
+</div><!-- /main -->
+
+<script>
+// ── SKIN DISEASE DATA ──
+const DD = {
+  AKIEC:{
+    th:"รอยโรคก่อนมะเร็งผิวหนัง",
+    en:"Actinic Keratoses",
+    sev:"ปานกลาง",sevEn:"Moderate",sevC:"orange",
+    loc:"บริเวณผิวหนังที่ได้รับแสงแดด",
+    cause:"การสัมผัสแสงแดดเป็นเวลานานทำให้เกิดการเปลี่ยนแปลงของเซลล์ผิวหนัง เป็นรอยโรคก่อนมะเร็งที่อาจพัฒนาเป็นมะเร็งได้",
+    g:[
+      {t:"warning",n:"!",l:"ประเมินเบื้องต้น",tx:"ตรวจสอบขนาด สี และลักษณะของรอยโรค พิจารณาส่งต่อแพทย์ผิวหนัง"},
+      {t:"primary",n:"1",l:"การรักษาหลัก",tx:"Cryotherapy, Topical chemotherapy หรือ Photodynamic therapy"},
+      {t:"secondary",n:"2",l:"การป้องกัน",tx:"หลีกเลี่ยงแสงแดดจัด ใช้ครีมกันแดด SPF 30+ และสวมเสื้อผ้าป้องกัน"},
+      {t:"secondary",n:"3",l:"ติดตามผล",tx:"ตรวจติดตามทุก 3-6 เดือน เพื่อดูการเปลี่ยนแปลงหรือการกลับมาใหม่"}
+    ]
+  },
+  BCC:{
+    th:"มะเร็งเซลล์ฐาน",
+    en:"Basal Cell Carcinoma",
+    sev:"สูง",sevEn:"High",sevC:"red",
+    loc:"หน้า คอ และบริเวณที่ได้รับแสงแดด",
+    cause:"มะเร็งผิวหนังชนิดที่พบบ่อยที่สุด เกิดจากการสัมผัสแสงแดดเรื้อรัง ขยายตัวช้าแต่อาจทำลายเนื้อเยื่อรอบๆ",
+    g:[
+      {t:"warning",n:"!",l:"การประเมิน",tx:"ตรวจสอบขนาด ความลึก และตำแหน่งของเนื้องอก ส่งต่อศัลยแพทย์ทันที"},
+      {t:"primary",n:"1",l:"การผ่าตัด",tx:"Surgical excision เป็นทางเลือกหลัก Mohs surgery สำหรับตำแหน่งสำคัญ"},
+      {t:"secondary",n:"2",l:"การรักษาอื่น",tx:"Radiation therapy, Topical therapy หรือ Cryotherapy สำหรับกรณีพิเศษ"},
+      {t:"secondary",n:"3",l:"ติดตามผล",tx:"ตรวจติดตามทุก 6-12 เดือน ตรวจหาการกลับมาใหม่หรือมะเร็งใหม่"}
+    ]
+  },
+  BKL:{
+    th:"กระเนื้องอกชนิดไม่ร้ายแรง",
+    en:"Benign Keratosis",
+    sev:"ต่ำ",sevEn:"Low",sevC:"green",
+    loc:"ใบหน้า แขน และลำตัว",
+    cause:"เนื้องอกผิวหนังที่ไม่เป็นอันตราย มักเกิดจากอายุและการสัมผัสแสงแดด ไม่กลายเป็นมะเร็ง",
+    g:[
+      {t:"warning",n:"!",l:"การตรวจสอบ",tx:"แยกแยะจากรอยโรคที่อันตราย หากมีข้อสงสัยควรส่งตรวจเนื้อเยื่อ"},
+      {t:"primary",n:"1",l:"การดูแล",tx:"ไม่จำเป็นต้องรักษาหากไม่มีอาการ สามารถเฝ้าระวังและติดตาม"},
+      {t:"secondary",n:"2",l:"การรักษา",tx:"Cryotherapy หรือการผ่าตัดเฉพาะกรณีที่รบกวนหรือผู้ป่วยต้องการ"},
+      {t:"secondary",n:"3",l:"การป้องกัน",tx:"ใช้ครีมกันแดด ปกป้องผิวจากแสงแดด และตรวจผิวสม่ำเสมอ"}
+    ]
+  },
+  DF:{
+    th:"เนื้องอกไฟโบร",
+    en:"Dermatofibroma",
+    sev:"ต่ำ",sevEn:"Low",sevC:"green",
+    loc:"ขา แขน และลำตัว",
+    cause:"เนื้องอกไม่ร้ายแรงในชั้นผิวหนัง มักเกิดจากการบาดเจ็บเล็กน้อย แมลงกัด หรือผิวอักเสบ",
+    g:[
+      {t:"warning",n:"!",l:"การประเมิน",tx:"ตรวจสอบลักษณะ ขนาด และการเปลี่ยนแปลง หากมีข้อสงสัยควรเจาะเนื้อเยื่อ"},
+      {t:"primary",n:"1",l:"การดูแล",tx:"ไม่จำเป็นต้องรักษาเนื่องจากเป็นเนื้องอกไม่ร้ายแรง สามารถเฝ้าระวัง"},
+      {t:"secondary",n:"2",l:"การรักษา",tx:"การผ่าตัดเอาออกเฉพาะกรณีที่รบกวนหรือผู้ป่วยต้องการ"},
+      {t:"secondary",n:"3",l:"ข้อควรระวัง",tx:"หลีกเลี่ยงการเกาหรือกระตุ้น เฝ้าระวังการเปลี่ยนแปลงผิดปกติ"}
+    ]
+  },
+  MEL:{
+    th:"มะเร็งผิวหนังเมลาโนมา",
+    en:"Melanoma",
+    sev:"สูงมาก",sevEn:"Very High",sevC:"red",
+    loc:"ทุกบริเวณของร่างกาย รวมถึงใต้เล็บ",
+    cause:"มะเร็งผิวหนังที่อันตรายที่สุด เกิดจากเซลล์เม็ดสี สามารถแพร่กระจายได้อย่างรวดเร็วหากไม่ได้รับการรักษา",
+    g:[
+      {t:"warning",n:"!",l:"เร่งด่วน",tx:"ส่งต่อแพทย์ผิวหนังทันที สำหรับการตรวจเนื้อเยื่อและจัดเตรียมการรักษา"},
+      {t:"primary",n:"1",l:"การผ่าตัด",tx:"Wide local excision เป็นการรักษาหลัก ตรวจสอบต่อมน้ำเหลือง"},
+      {t:"primary",n:"2",l:"การรักษาเพิ่มเติม",tx:"Immunotherapy, Targeted therapy หรือ Chemotherapy ตามระยะของโรค"},
+      {t:"secondary",n:"3",l:"ติดตามอย่างใกล้ชิด",tx:"ตรวจติดตามทุก 3 เดือน ตรวจภาพถ่าย และตรวจเลือดเฉพาะ"}
+    ]
+  },
+  NV:{
+    th:"ไฝปกติ",
+    en:"Melanocytic Nevi",
+    sev:"ต่ำ",sevEn:"Low",sevC:"green",
+    loc:"ทั่วร่างกาย",
+    cause:"ไฝที่เกิดขึ้นตามธรรมชาติจากเซลล์เม็ดสี ส่วนใหญ่ไม่เป็นอันตราย แต่ต้องเฝ้าระวังการเปลี่ยนแปลง",
+    g:[
+      {t:"warning",n:"!",l:"การสังเกต",tx:"เฝ้าระวังการเปลี่ยนแปลงตามหลัก ABCDE (Asymmetry, Border, Color, Diameter, Evolving)"},
+      {t:"primary",n:"1",l:"การดูแล",tx:"ตรวจสอบไฝสม่ำเสมอ ถ่ายภาพเพื่อเปรียบเทียบการเปลี่ยนแปลง"},
+      {t:"secondary",n:"2",l:"การป้องกัน",tx:"ป้องกันแสงแดด ใช้ครีมกันแดดและเสื้อผ้าปกคลุม"},
+      {t:"secondary",n:"3",l:"การรักษา",tx:"เอาออกเฉพาะกรณีที่มีการเปลี่ยนแปลงผิดปกติหรือระคายเคือง"}
+    ]
+  },
+  VASC:{
+    th:"รอยโรคหลอดเลือด",
+    en:"Vascular Lesions",
+    sev:"ต่ำ",sevEn:"Low",sevC:"green",
+    loc:"ใบหน้า คอ และแขนขา",
+    cause:"รอยแดงจากหลอดเลือดใต้ผิวหนัง มักเป็นแผลจากความดัน เลือดออกใต้ผิว หรือหลอดเลือดผิดปกติ",
+    g:[
+      {t:"warning",n:"!",l:"การประเมิน",tx:"ตรวจสอบสาเหตุของรอยแดง แยกแยะจากรอยโรคอื่นที่อาจอันตราย"},
+      {t:"primary",n:"1",l:"การรักษา",tx:"ส่วนใหญ่หายเองหรือไม่จำเป็นต้องรักษา หากต้องการ ใช้ Laser therapy"},
+      {t:"secondary",n:"2",l:"การดูแล",tx:"หลีกเลี่ยงการกระทบกระเทือน ปกป้องจากแสงแดดจัด"},
+      {t:"secondary",n:"3",l:"ติดตาม",tx:"เฝ้าระวังการเปลี่ยนแปลงหรือการเพิ่มขึ้นของรอยโรค"}
+    ]
+  }
+};
+
+// ── STATE ──
+let curFile=null, lastData=null, activeTab='detect', classifyOpen=false;
+
+// ── CLOCK ──
+const TM=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function tick(){
+  const n=new Date();
+  const d=String(n.getDate()).padStart(2,'0'),m=TM[n.getMonth()],y=n.getFullYear()+543,t=n.toTimeString().slice(0,8);
+  document.getElementById('clock').textContent=`${d} ${m} ${y}  ${t}`;
+}
+tick(); setInterval(tick,1000);
+
+// ── IMAGE VALIDATION ──
+async function validateImage(file) {
+  // Show validation loading
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('loading').innerHTML = `
+    <div class="spinner"></div>
+    <div style="color:var(--g3);font-size:.88rem">กำลังตรวจสอบภาพด้วย Claude AI...</div>
+    <div style="color:var(--g3);font-size:.75rem;margin-top:8px">ตรวจสอบว่าเป็นภาพรอยโรคผิวหนังหรือไม่</div>
+  `;
+  document.getElementById('loading').style.display='block';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    console.log('🔍 Validating image with Claude AI...');
+    const response = await fetch('./validate-image', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+    console.log('📡 Validation result:', result);
+
+    if (result.is_valid) {
+      console.log('✅ Valid skin lesion detected');
+      // Image is valid, proceed with analysis
+      analyze();
+    } else {
+      console.log('❌ Invalid image detected');
+      // Show error message
+      showImageValidationError(result.message, result.confidence);
+    }
+
+  } catch (error) {
+    console.error('❌ Validation error:', error);
+    // If validation fails, show error but allow to proceed
+    showImageValidationError('ไม่สามารถตรวจสอบภาพได้ กรุณาตรวจสอบการเชื่อมต่อ', 0);
+  } finally {
+    document.getElementById('loading').style.display='none';
+  }
+}
+
+function showImageValidationError(message, confidence) {
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('detect-view').style.display='block';
+
+  const gl = document.getElementById('glist');
+  gl.innerHTML = `
+    <div class="gitem warning" style="margin-bottom:15px">
+      <span class="gnum">❌</span>
+      <span class="gtext">
+        <strong>ภาพไม่ใช่รอยโรคผิวหนัง</strong><br/>
+        ${esc(message)}<br/>
+        ${confidence > 0 ? `<small>ความเชื่อมั่น: ${confidence}%</small>` : ''}
+      </span>
+    </div>
+    <div class="gitem secondary">
+      <span class="gnum">📋</span>
+      <span class="gtext">
+        <strong>ภาพที่รองรับ:</strong><br/>
+        • ภาพถ่ายรอยโรคผิวหนัง ไฝ กระ หรือแผล<br/>
+        • ภาพซูมระยะใกล้ที่เห็นรอยโรคชัดเจน
+      </span>
+    </div>
+    <div class="gitem primary">
+      <span class="gnum">🔄</span>
+      <span class="gtext">
+        <strong>ต้องการดำเนินการต่อไหม?</strong><br/>
+        <button onclick="proceedWithAnalysis()"
+                style="background:var(--cyan);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:.8rem;cursor:pointer;margin-top:8px;margin-right:8px">
+          ✅ ใช่ ดำเนินการต่อ
+        </button>
+        <button onclick="resetToEmpty()"
+                style="background:var(--g2);color:var(--g4);border:none;padding:8px 16px;border-radius:6px;font-size:.8rem;cursor:pointer;margin-top:8px">
+          ❌ เลือกภาพใหม่
+        </button>
+      </span>
+    </div>
+  `;
+
+  // Set default values
+  document.getElementById('causes-txt').textContent = 'ไม่สามารถวิเคราะห์ได้เนื่องจากไม่ใช่ภาพรอยโรคผิวหนัง';
+
+  // Show tabs for user to decide
+  document.getElementById('tabs').style.display='flex';
+  switchTab('detect');
+}
+
+function proceedWithAnalysis() {
+  console.log('👤 User chose to proceed with analysis');
+  analyze();
+}
+
+function resetToEmpty() {
+  console.log('👤 User chose to select new image');
+  // Reset everything
+  curFile = null;
+  document.getElementById('xray-img').style.display='none';
+  document.getElementById('vempty').style.display='block';
+  document.getElementById('vlabel-tr').classList.remove('show');
+  resetPanel();
+  document.getElementById('empty-state').style.display='block';
+}
+
+// ── FILE SELECT ──
+function onFile(e){
+  const f=e.target.files[0]; if(!f) return;
+  const fType = f.type;
+  const fName = f.name.toLowerCase();
+  if (fType !== 'image/jpeg' && !fName.endsWith('.jpg') && !fName.endsWith('.jpeg')) {
+    showErr('ระบบรองรับเฉพาะรูปภาพประเภท JPG / JPEG เท่านั้น');
+    e.target.value = '';
+    return;
+  }
+  curFile=f;
+  const img=document.getElementById('xray-img');
+  img.src=URL.createObjectURL(f);
+  img.style.display='block';
+  document.getElementById('vempty').style.display='none';
+  document.getElementById('vlabel-tr').classList.remove('show');
+  resetPanel();
+
+  // Validate image first before analysis
+  validateImage(f);
+}
+
+function resetPanel(){
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('tabs').style.display='none';
+  document.getElementById('detect-view').style.display='none';
+  document.getElementById('classify-view').style.display='none';
+  document.getElementById('chat-view').style.display='none';
+
+  // Reset active tab
+  activeTab = 'detect';
+
+  // Clear chat history when new image is uploaded
+  chatHistory = [];
+  const chatMessages = document.getElementById('chat-messages');
+  if(chatMessages){
+    chatMessages.innerHTML = '<div class="chat-welcome" style="color:var(--g3);text-align:center;padding:20px;font-size:.85rem">👋 สวัสดีครับ ผมเป็น AI ช่วยเหลือแพทย์<br/>มีคำถามเกี่ยวกับการวินิจฉัยหรือการรักษาไหมครับ?</div>';
+  }
+}
+
+// ── ANALYZE ──
+async function analyze(){
+  if(!curFile) return;
+  document.getElementById('loading').style.display='block';
+  const form=new FormData();
+  form.append('file',curFile);
+  try{
+    const r=await fetch('./predict',{method:'POST',body:form});
+    const d=await r.json();
+    if(!r.ok){showErr(d.detail||'Server error '+r.status);return;}
+    window.lastData=d;
+    buildDetect(d);
+    buildClassify(d);
+    document.getElementById('tabs').style.display='flex';
+
+    // Reset all tab states
+    document.getElementById('tab-classify').className='tab off';
+    document.getElementById('tab-chat').className='tab off';
+
+    // Show detect view as default
+    switchTab('detect');
+    const tr=document.getElementById('vlabel-tr');
+    tr.textContent=d.top_prediction.code+' Detected';
+    tr.classList.add('show');
+  }catch(err){showErr('เชื่อมต่อ server ไม่ได้: '+err.message);}
+  finally{document.getElementById('loading').style.display='none';}
+}
+
+// ── BUILD DETECT VIEW ──
+function buildDetect(d){
+  const top=d.top_prediction;
+
+  // Basic disease info (keep minimal static info)
+  document.getElementById('conf-pct').textContent=top.probability_pct+'%';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    document.getElementById('conf-bar').style.width=top.probability_pct+'%';
+  }));
+  document.getElementById('dis-name-th').textContent=top.name;
+  document.getElementById('dis-name-en').textContent=`Code: ${top.code}`;
+
+  // Severity based on confidence
+  const conf = top.probability_pct;
+  let sevInfo = {sev: 'ปานกลาง', sevEn: 'Moderate', sevC: 'orange'};
+  if(conf >= 90) sevInfo = {sev: 'สูง', sevEn: 'High', sevC: 'red'};
+  else if(conf < 70) sevInfo = {sev: 'ต่ำ', sevEn: 'Low', sevC: 'green'};
+
+  const cmap={red:'badge-red',orange:'badge-orange',green:'badge-green'};
+  const cdot={red:'#ef4444',orange:'#f59e0b',green:'#22c55e'};
+  const b=document.getElementById('sev-badge');
+  b.className='badge '+(cmap[sevInfo.sevC]||'badge-orange');
+  b.innerHTML=`<span style="width:8px;height:8px;border-radius:50%;background:${cdot[sevInfo.sevC]||'#f59e0b'};display:inline-block"></span> ${esc(sevInfo.sev)} (${esc(sevInfo.sevEn)})`;
+
+  document.getElementById('causes-txt').textContent='รอการวิเคราะห์จาก Claude AI...';
+
+  // Show AI loading for treatment
+  const gl=document.getElementById('glist');
+  gl.innerHTML=`
+    <div class="gitem primary" style="text-align:center">
+      <div class="spinner" style="width:24px;height:24px;margin:0 auto 8px"></div>
+      <div style="color:var(--g4)">Claude AI กำลังวิเคราะห์และสร้างคำแนะนำการรักษา...</div>
+    </div>
+  `;
+
+  document.getElementById('err-box').style.display='none';
+
+  // Auto-generate treatment advice from Claude AI
+  generateTreatmentAdviceAuto(d);
+}
+
+// ── AUTO CLAUDE TREATMENT ADVICE ──
+async function generateTreatmentAdviceAuto(predictionData){
+  try {
+    const payload = {
+      disease_name: predictionData.top_prediction.name,
+      disease_code: predictionData.top_prediction.code,
+      confidence: predictionData.top_prediction.probability_pct,
+      patient_info: getPatientInfo()
+    };
+
+    console.log('🔄 Sending request to Claude...', payload);
+
+    const response = await fetch('./treatment-advice', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+    console.log('📡 Claude response:', result);
+
+    if(result.success){
+      // Parse Claude's response and display in detect view
+      displayClaudeTreatmentInDetectView(result.data.recommendation, predictionData);
+    } else {
+      throw new Error(result.message || 'Unknown error');
+    }
+  } catch(err) {
+    console.error('❌ Error:', err);
+    displayClaudeTreatmentError(err.message);
+  }
+}
+
+
+function displayClaudeTreatmentInDetectView(recommendation, predictionData) {
+  console.log('🎨 Displaying treatment data:', recommendation);
+  console.log('🎨 Type:', typeof recommendation);
+  console.log('🎨 Length:', recommendation ? recommendation.length : 'null');
+
+  try {
+    // Handle different input types
+    let treatmentData = null;
+
+    if (typeof recommendation === 'object' && recommendation !== null) {
+      // Already parsed object
+      treatmentData = recommendation;
+      console.log('🎨 Using pre-parsed object');
+    } else if (typeof recommendation === 'string') {
+      // String that needs parsing
+      treatmentData = parseClaudeStructuredResponse(recommendation);
+      console.log('🎨 Parse result:', treatmentData);
+    } else {
+      console.warn('⚠️ Unexpected recommendation type:', typeof recommendation);
+      displayFallbackTreatment(recommendation, predictionData);
+      return;
+    }
+
+    if (!treatmentData) {
+      console.warn('⚠️ Failed to parse structured response, using fallback');
+      displayFallbackTreatment(recommendation, predictionData);
+      return;
+    }
+
+    // Update causes with improved fallback
+    const causesText = treatmentData.causes || 'รอการวิเคราะห์เพิ่มเติม...';
+
+    document.getElementById('causes-txt').textContent = causesText;
+
+    // Display treatment recommendations
+    const gl = document.getElementById('glist');
+    gl.innerHTML = '';
+
+    if (treatmentData.treatments && Array.isArray(treatmentData.treatments) && treatmentData.treatments.length > 0) {
+      console.log('✅ Rendering', treatmentData.treatments.length, 'treatments');
+
+      treatmentData.treatments.forEach((treatment, index) => {
+        try {
+          const el = document.createElement('div');
+          const treatmentType = (treatment.type || 'secondary').toLowerCase();
+
+          // Ensure type is valid
+          const validTypes = ['warning', 'primary', 'secondary'];
+          const finalType = validTypes.includes(treatmentType) ? treatmentType : 'secondary';
+
+          el.className = 'gitem ' + finalType;
+          el.innerHTML = `
+            <span class="gnum">${esc(treatment.number || (index + 1))}</span>
+            <span class="gtext">
+              <strong>${esc(treatment.label || 'การรักษา')}:</strong>
+              ${esc(treatment.description || 'ไม่มีรายละเอียด')}
+            </span>
+          `;
+          gl.appendChild(el);
+        } catch (treatmentError) {
+          console.warn('⚠️ Error rendering treatment', index, ':', treatmentError);
+        }
+      });
+
+      // Add disclaimer
+      const disclaimer = document.createElement('div');
+      disclaimer.className = 'gitem warning';
+      disclaimer.innerHTML = `
+        <span class="gnum">⚠️</span>
+        <span class="gtext">
+          <strong>หมายเหตุ:</strong>
+          ผลลัพธ์นี้เป็นข้อมูลประกอบการตัดสินใจของแพทย์เท่านั้น ไม่ใช่วินิจฉัยขั้นสุดท้าย
+        </span>
+      `;
+      gl.appendChild(disclaimer);
+
+    } else {
+      console.warn('⚠️ No valid treatments found, using fallback');
+      displayFallbackTreatment(recommendation, predictionData);
+    }
+
+  } catch (error) {
+    console.error('❌ Display error:', error);
+    displayFallbackTreatment(recommendation, predictionData);
+  }
+}
+
+function parseClaudeStructuredResponse(text) {
+  console.log('📝 Starting parse for text length:', text.length);
+  console.log('📝 First 200 chars:', text.substring(0, 200));
+
+  try {
+    // Clean the text first
+    let cleanText = text.trim();
+
+    // Remove markdown code blocks if present
+    if (cleanText.startsWith('```json')) {
+      cleanText = cleanText.substring(7);
+    }
+    if (cleanText.startsWith('```')) {
+      cleanText = cleanText.substring(3);
+    }
+    if (cleanText.endsWith('```')) {
+      cleanText = cleanText.substring(0, cleanText.length - 3);
+    }
+    cleanText = cleanText.trim();
+
+    console.log('🔧 Cleaned text length:', cleanText.length);
+
+    // First try: Parse as direct JSON (for new Claude service format)
+    try {
+      const jsonData = JSON.parse(cleanText);
+      console.log('✅ Direct JSON parsing successful:', jsonData);
+
+      // Validate structure
+      if (jsonData.location || jsonData.causes || (jsonData.treatments && Array.isArray(jsonData.treatments))) {
+        console.log('✅ JSON structure validation passed');
+        return jsonData;
+      } else {
+        console.warn('⚠️ JSON missing expected structure');
+      }
+    } catch (directParseError) {
+      console.log('🔍 Direct JSON parse failed, trying extraction method...');
+    }
+
+    // Second try: Find and extract JSON object from larger text (fallback)
+    const startIdx = cleanText.indexOf('{');
+    const lastIdx = cleanText.lastIndexOf('}');
+
+    console.log('🔍 Found { at:', startIdx, 'and } at:', lastIdx);
+
+    if (startIdx >= 0 && lastIdx > startIdx) {
+      const jsonStr = cleanText.substring(startIdx, lastIdx + 1);
+      console.log('🔍 Extracted JSON string length:', jsonStr.length);
+
+      try {
+        const jsonData = JSON.parse(jsonStr);
+        console.log('✅ Extracted JSON parsing successful:', jsonData);
+
+        // Validate structure
+        if (jsonData.causes || (jsonData.treatments && Array.isArray(jsonData.treatments))) {
+          console.log('✅ JSON structure validation passed');
+          return jsonData;
+        } else {
+          console.warn('⚠️ JSON missing expected structure');
+        }
+      } catch (jsonError) {
+        console.warn('⚠️ JSON parse failed:', jsonError.message);
+        console.warn('⚠️ Problem with JSON:', jsonStr.substring(Math.max(0, jsonStr.length - 200)));
+      }
+    } else {
+      console.warn('⚠️ No JSON object found in text');
+    }
+
+    console.log('⚠️ All parsing methods failed');
+    return null;
+
+  } catch (error) {
+    console.error('❌ Parse error:', error);
+    return null;
+  }
+}
+
+function displayFallbackTreatment(rawResponse, predictionData) {
+  console.log('🔄 Using fallback display for:', rawResponse);
+
+  // Set default causes with better context
+  document.getElementById('causes-txt').textContent = 'กำลังประมวลผลข้อมูลจาก Claude AI...';
+
+  // Display response in a better format
+  const gl = document.getElementById('glist');
+
+  // Check if rawResponse has error information
+  let responseText = '';
+  let hasError = false;
+
+  if (typeof rawResponse === 'object' && rawResponse?.error) {
+    responseText = rawResponse.error;
+    hasError = true;
+  } else if (typeof rawResponse === 'string') {
+    responseText = rawResponse;
+    // Check if it looks like an error message
+    if (responseText.includes('error') || responseText.includes('Error') || responseText.includes('ผิดพลาด')) {
+      hasError = true;
+    }
+  } else {
+    responseText = 'ไม่สามารถประมวลผลคำแนะนำได้';
+    hasError = true;
+  }
+
+  if (hasError) {
+    gl.innerHTML = `
+      <div class="gitem warning">
+        <span class="gnum">❌</span>
+        <span class="gtext">
+          <strong>เกิดข้อผิดพลาด:</strong><br/>
+          ${esc(responseText)}<br/><br/>
+          กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ
+        </span>
+      </div>
+    `;
+  } else {
+    gl.innerHTML = `
+      <div class="gitem primary">
+        <span class="gnum">🤖</span>
+        <span class="gtext">
+          <strong>คำแนะนำจาก Claude AI:</strong><br/><br/>
+          ${esc(responseText).replace(/\n/g, '<br/>')}
+        </span>
+      </div>
+      <div class="gitem warning">
+        <span class="gnum">ℹ️</span>
+        <span class="gtext">
+          <strong>หมายเหตุ:</strong>
+          การแสดงผลนี้เป็นรูปแบบสำรอง เนื่องจากไม่สามารถแยกวิเคราะห์ข้อมูลแบบโครงสร้างได้
+        </span>
+      </div>
+      <div class="gitem warning">
+        <span class="gnum">⚠️</span>
+        <span class="gtext">
+          <strong>คำเตือน:</strong>
+          ผลลัพธ์นี้เป็นข้อมูลประกอบการตัดสินใจของแพทย์เท่านั้น ไม่ใช่วินิจฉัยขั้นสุดท้าย
+        </span>
+      </div>
+    `;
+  }
+}
+
+function displayClaudeTreatmentError(errorMsg) {
+  const gl = document.getElementById('glist');
+  gl.innerHTML = `
+    <div class="gitem warning">
+      <span class="gnum">⚠️</span>
+      <span class="gtext"><strong>ไม่สามารถสร้างคำแนะนำได้:</strong> ${esc(errorMsg)}<br/><br/>โปรดลองใช้ tab "Treatment" เพื่อสร้างคำแนะนำใหม่</span>
+    </div>
+  `;
+}
+
+// ── BUILD CLASSIFY VIEW ──
+function buildClassify(d){
+  const pl=document.getElementById('prob-list');
+  pl.innerHTML='';
+  d.all_predictions.forEach(p=>{
+    const bc=p.rank===1?'r1':p.rank===2?'r2':'rn';
+    const el=document.createElement('div');
+    el.className='pitem';
+    el.innerHTML=`<div class="ph"><span class="pname"><span class="pcode">${esc(p.code)}</span>${esc(p.name)}</span><span class="ppct">${p.probability_pct}%</span></div><div class="ptrack"><div class="pbar ${bc}" style="width:0%" data-pct="${p.probability_pct}"></div></div>`;
+    pl.appendChild(el);
+  });
+}
+
+// ── TAB SWITCH ──
+function switchTab(tab){
+  if(tab==='classify'){
+    // Classify tab works as toggle
+    const isCurrentlyOn = document.getElementById('tab-classify').classList.contains('on');
+
+    if(isCurrentlyOn){
+      // Turn OFF classify, show detect
+      document.getElementById('classify-view').style.display='none';
+      document.getElementById('detect-view').style.display='block';
+      document.getElementById('tab-classify').className='tab off';
+      activeTab = 'detect';
+    } else {
+      // Turn ON classify, hide others
+      document.getElementById('detect-view').style.display='none';
+      document.getElementById('chat-view').style.display='none';
+      document.getElementById('classify-view').style.display='block';
+
+      // Reset other tab states
+      document.getElementById('tab-chat').className='tab off';
+      document.getElementById('tab-classify').className='tab on';
+
+      activeTab = 'classify';
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        document.querySelectorAll('.pbar').forEach(b=>b.style.width=b.dataset.pct+'%');
+      }));
+    }
+
+  } else {
+    // Other tabs work normally
+    // Hide all views
+    document.getElementById('detect-view').style.display='none';
+    document.getElementById('classify-view').style.display='none';
+    document.getElementById('chat-view').style.display='none';
+
+    // Reset all tab states
+    document.getElementById('tab-classify').className='tab off';
+    document.getElementById('tab-chat').className='tab off';
+
+    if(tab==='chat'){
+      document.getElementById('chat-view').style.display='block';
+      document.getElementById('tab-chat').className='tab on';
+    } else {
+      document.getElementById('detect-view').style.display='block';
+      tab='detect';
+    }
+    activeTab = tab;
+  }
+}
+
+// ── CLAUDE API FUNCTIONS ──
+async function generateTreatmentAdvice(){
+  if(!lastData) return;
+
+  const loading = document.getElementById('treatment-loading');
+  const content = document.getElementById('treatment-content');
+  const error = document.getElementById('treatment-error');
+
+  loading.style.display='block';
+  content.style.display='none';
+  error.style.display='none';
+
+  try {
+    const payload = {
+      disease_name: lastData.top_prediction.name,
+      disease_code: lastData.top_prediction.code,
+      confidence: lastData.top_prediction.probability_pct,
+      patient_info: getPatientInfo()
+    };
+
+    const response = await fetch('./treatment-advice', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    if(result.success){
+      content.textContent = result.data.recommendation;
+      content.style.display = 'block';
+    } else {
+      throw new Error(result.message || 'Unknown error');
+    }
+  } catch(err) {
+    error.textContent = '⚠️ ' + err.message;
+    error.style.display = 'block';
+  } finally {
+    loading.style.display = 'none';
+  }
+}
+
+let chatHistory = [];
+async function sendChatMessage(){
+  const input = document.getElementById('chat-input');
+  const question = input.value.trim();
+  if(!question) return;
+
+  const messages = document.getElementById('chat-messages');
+  const loading = document.getElementById('chat-loading');
+
+  // Add user message
+  addChatMessage('user', question);
+  input.value = '';
+
+  // Show loading
+  loading.style.display = 'block';
+
+  try {
+    const context = lastData ? {
+      disease: lastData.top_prediction.name,
+      confidence: lastData.top_prediction.probability_pct + '%',
+      patient_info: getPatientInfo()
+    } : {};
+
+    const payload = {
+      question: question,
+      conversation_history: chatHistory,
+      context: context
+    };
+
+    const response = await fetch('./chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    if(result.success){
+      addChatMessage('claude', result.data.response);
+
+      // Update chat history
+      chatHistory.push({role: 'user', content: question});
+      chatHistory.push({role: 'assistant', content: result.data.response});
+
+      // Keep only last 10 exchanges
+      if(chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+    } else {
+      addChatMessage('claude', '⚠️ ' + (result.message || 'Unknown error'));
+    }
+  } catch(err) {
+    addChatMessage('claude', '⚠️ เกิดข้อผิดพลาด: ' + err.message);
+  } finally {
+    loading.style.display = 'none';
+  }
+}
+
+function addChatMessage(sender, message){
+  const messages = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `chat-message chat-${sender}`;
+
+  if(sender === 'user'){
+    div.innerHTML = `<strong>คุณ:</strong> ${esc(message)}`;
+  } else {
+    div.innerHTML = `<strong>Claude:</strong> ${esc(message)}`;
+  }
+
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+
+  // Remove welcome message
+  const welcome = messages.querySelector('.chat-welcome');
+  if(welcome) welcome.style.display = 'none';
+}
+
+function getPatientInfo(){
+  // Patient info fields removed from UI
+  return '';
+}
+
+// Enter key support for chat
+document.addEventListener('DOMContentLoaded', function(){
+  const chatInput = document.getElementById('chat-input');
+  if(chatInput){
+    chatInput.addEventListener('keypress', function(e){
+      if(e.key === 'Enter') sendChatMessage();
+    });
+  }
+});
+
+// ── VIEWER BUTTONS ──
+function setViewMode(mode,e){
+  e.stopPropagation();
+  document.getElementById('btn-orig').className='vbtn '+(mode==='orig'?'on':'off');
+  document.getElementById('btn-info').className='vbtn '+(mode==='info'?'on':'off');
+  if(mode==='info'){
+    setTimeout(()=>{
+      document.getElementById('btn-orig').className='vbtn on';
+      document.getElementById('btn-info').className='vbtn off';
+    },1800);
+  }
+}
+
+// ── NAVIGATION ──
+function goToHomePage(){
+  window.location.href = '/';
+}
+
+// ── UTILS ──
+function showErr(msg){
+  document.getElementById('err-box').textContent='⚠️ '+msg;
+  document.getElementById('err-box').style.display='block';
+  document.getElementById('detect-view').style.display='block';
+  document.getElementById('tabs').style.display='flex';
+  switchTab('detect');
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+{
+  "model_type": "EfficientNetB0",
+  "dataset": "HAM10000",
+  "num_classes": 7,
+  "img_size": 224,
+  "classes": [
+    "akiec",
+    "bcc",
+    "bkl",
+    "df",
+    "mel",
+    "nv",
+    "vasc"
+  ],
+  "class_full_names": {
+    "akiec": "Actinic keratoses / รอยโรคก่อนมะเร็ง",
+    "bcc": "Basal cell carcinoma / มะเร็งเซลล์ฐาน",
+    "bkl": "Benign keratosis / กระเนื้องอกชนิดไม่ร้าย",
+    "df": "Dermatofibroma / เนื้องอกผิวหนังชนิดไม่ร้าย",
+    "mel": "Melanoma / มะเร็งผิวหนังเมลาโนมา",
+    "nv": "Melanocytic nevi / ไฝปกติ",
+    "vasc": "Vascular lesions / รอยโรคหลอดเลือด"
+  },
+  "mel_threshold": 0.3,
+  "mel_index": 4,
+  "performance": {
+    "overall_accuracy": 0.648,
+    "mel_recall": 0.701,
+    "mel_precision": 0.27,
+    "macro_f1": 0.582
+  },
+  "preprocessing": "efficientnet.preprocess_input (built into model)",
+  "note": "mel threshold 0.30 chosen on val, confirmed on test, for screening-oriented high recall"
+}

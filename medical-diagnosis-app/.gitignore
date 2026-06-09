@@ -1,0 +1,45 @@
+# Environment variables - SECURITY CRITICAL!
+.env
+.env.local
+.env.production
+.env.staging
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Model files (usually too large for git)
+models/
+*.keras
+*.h5
+*.pkl
+*.joblib
+
+# Test images and data
+test_images/
+uploads/
+temp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Response cache
+resp*.json

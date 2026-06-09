@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Medical Diagnosis Portal - ระบบ AI วินิจฉัยโรคทางการแพทย์</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Thai", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            font-weight: 700;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .header .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .disease-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .disease-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .disease-card.available {
+            border-left: 5px solid #4CAF50;
+        }
+
+        .disease-card.coming-soon {
+            border-left: 5px solid #FF9800;
+            opacity: 0.8;
+        }
+
+        .disease-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            display: block;
+            text-align: center;
+        }
+
+        .disease-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+
+        .disease-description {
+            color: #7f8c8d;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .disease-status {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+
+        .status-available {
+            background: #e8f5e8;
+            color: #4CAF50;
+        }
+
+        .status-coming-soon {
+            background: #fff3e0;
+            color: #FF9800;
+        }
+
+        .card-features {
+            list-style: none;
+            margin-top: 20px;
+        }
+
+        .card-features li {
+            padding: 8px 0;
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        .card-features li:before {
+            content: "✓";
+            color: #4CAF50;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .coming-soon .card-features li:before {
+            content: "⏳";
+            color: #FF9800;
+        }
+
+        .go-button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .go-button:hover {
+            background: linear-gradient(45deg, #5a6fd8, #6a4190);
+            transform: scale(1.02);
+        }
+
+        .go-button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 60px;
+            color: white;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .cards-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .disease-card {
+                padding: 20px;
+            }
+        }
+
+        /* Loading animation */
+        .card-loading {
+            position: relative;
+        }
+
+        .card-loading::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border-radius: 20px;
+        }
+
+        .card-loading.loading::after {
+            display: flex;
+            content: '⏳ กำลังเปิดระบบ...';
+            font-weight: 500;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 AI Medical Portal</h1>
+            <p class="subtitle">ระบบปัญญาประดิษฐ์เพื่อช่วยวินิจฉัยโรคทางการแพทย์</p>
+        </div>
+
+        <div class="cards-grid">
+            <!-- Skin Cancer Card -->
+            <div class="disease-card available card-loading" onclick="openSystem('skin')" id="skin-card">
+                <div class="disease-icon">🔬</div>
+                <h3 class="disease-title">มะเร็งผิวหนัง</h3>
+                <span class="disease-status status-available">✅ พร้อมใช้งาน</span>
+                <p class="disease-description">
+                    ระบบวิเคราะห์รอยโรคผิวหนัง 7 ประเภท ด้วย AI โมเดล EfficientNetB0
+                    ช่วยตรวจสอบความเสี่ยงของมะเร็งผิวหนังและโรคผิวหนังอื่น ๆ
+                </p>
+                <ul class="card-features">
+                    <li>วิเคราะห์ภาพรอยโรคผิวหนัง</li>
+                    <li>แยกประเภทโรค 7 ชนิด</li>
+                    <li>ให้คำแนะนำเบื้องต้น</li>
+                    <li>รองรับ Claude AI</li>
+                </ul>
+                <button class="go-button" onclick="event.stopPropagation(); openSystem('skin')">
+                    🚀 เข้าสู่ระบบวินิจฉัยผิวหนัง
+                </button>
+            </div>
+
+            <!-- Dental Card -->
+            <div class="disease-card available card-loading" onclick="openSystem('dental')" id="dental-card">
+                <div class="disease-icon">🦷</div>
+                <h3 class="disease-title">โรครากฟัน</h3>
+                <span class="disease-status status-available">✅ พร้อมใช้งาน</span>
+                <p class="disease-description">
+                    ระบบวิเคราะห์ภาพเอ็กซ์เรย์ฟัน เพื่อตรวจหาโรครากฟันและปัญหาทางทันตกรรม
+                    ด้วยเทคโนโลยี AI ที่แม่นยำ
+                </p>
+                <ul class="card-features">
+                    <li>วิเคราะห์ภาพเอ็กซ์เรย์ฟัน</li>
+                    <li>ตรวจหาโรครากฟัน</li>
+                    <li>ประเมินความรุนแรง</li>
+                    <li>คำแนะนำการรักษา</li>
+                </ul>
+                <button class="go-button" onclick="event.stopPropagation(); openSystem('dental')">
+                    🚀 เข้าสู่ระบบวินิจฉัยทันตกรรม
+                </button>
+            </div>
+
+            <!-- Brain Stroke Card -->
+            <div class="disease-card coming-soon" onclick="showComingSoon('brain')">
+                <div class="disease-icon">🧠</div>
+                <h3 class="disease-title">สมองขาดเลือด</h3>
+                <span class="disease-status status-coming-soon">⏳ เร็ว ๆ นี้</span>
+                <p class="disease-description">
+                    ระบบวิเคราะห์ภาพ CT/MRI สมอง เพื่อตรวจหาอาการโรคสมองขาดเลือด
+                    และประเมินความรุนแรงของอาการ
+                </p>
+                <ul class="card-features">
+                    <li>วิเคราะห์ภาพ CT/MRI</li>
+                    <li>ตรวจหาบริเวณขาดเลือด</li>
+                    <li>ประเมินความรุนแรง</li>
+                    <li>แนะนำการดูแลเร่งด่วน</li>
+                </ul>
+                <button class="go-button" disabled>
+                    🔧 กำลังพัฒนา...
+                </button>
+            </div>
+
+            <!-- Osteoporosis Card -->
+            <div class="disease-card coming-soon" onclick="showComingSoon('osteoporosis')">
+                <div class="disease-icon">🦴</div>
+                <h3 class="disease-title">กระดูกพรุน</h3>
+                <span class="disease-status status-coming-soon">⏳ เร็ว ๆ นี้</span>
+                <p class="disease-description">
+                    ระบบวิเคราะห์ภาพเอ็กซ์เรย์กระดูก เพื่อตรวจหาและประเมินระดับ
+                    ความรุนแรงของโรคกระดูกพรุน
+                </p>
+                <ul class="card-features">
+                    <li>วิเคราะห์ภาพเอ็กซ์เรย์กระดูก</li>
+                    <li>ประเมินความหนาแน่นกระดูก</li>
+                    <li>วัดระดับความพรุน</li>
+                    <li>คำแนะนำการป้องกัน</li>
+                </ul>
+                <button class="go-button" disabled>
+                    🔧 กำลังพัฒนา...
+                </button>
+            </div>
+
+            <!-- Spine Card -->
+            <div class="disease-card coming-soon" onclick="showComingSoon('spine')">
+                <div class="disease-icon">🦴</div>
+                <h3 class="disease-title">กระดูกสันหลัง</h3>
+                <span class="disease-status status-coming-soon">⏳ เร็ว ๆ นี้</span>
+                <p class="disease-description">
+                    ระบบวิเคราะห์ภาพเอ็กซ์เรย์กระดูกสันหลัง เพื่อตรวจหาความผิดปกติ
+                    และปัญหาโครงสร้างของกระดูกสันหลัง
+                </p>
+                <ul class="card-features">
+                    <li>วิเคราะห์ภาพกระดูกสันหลัง</li>
+                    <li>ตรวจหาความผิดปกติ</li>
+                    <li>ประเมินการเบี่ยงเบน</li>
+                    <li>แนะนำการบำบัด</li>
+                </ul>
+                <button class="go-button" disabled>
+                    🔧 กำลังพัฒนา...
+                </button>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🤖 พัฒนาโดยเทคโนโลยี AI เพื่อช่วยเหลือการวินิจฉัยเบื้องต้น</p>
+            <p style="margin-top: 10px; font-size: 0.9rem;">
+                ⚠️ ผลการวิเคราะห์เป็นเพียงข้อมูลเบื้องต้น กรุณาปรึกษาแพทย์เพื่อการวินิจฉัยที่แม่นยำ
+            </p>
+        </div>
+    </div>
+
+    <script>
+        function openSystem(type) {
+            const card = document.getElementById(type + '-card');
+            card.classList.add('loading');
+
+            switch(type) {
+                case 'skin':
+                    setTimeout(() => {
+                        window.location.href = 'http://localhost:8001';
+                    }, 1000);
+                    break;
+
+                case 'dental':
+                    setTimeout(() => {
+                        window.location.href = 'http://localhost:8000';
+                    }, 1000);
+                    break;
+            }
+        }
+
+        function showComingSoon(type) {
+            const messages = {
+                'brain': 'ระบบวินิจฉัยสมองขาดเลือดกำลังอยู่ระหว่างการพัฒนา\nคาดว่าจะเปิดให้บริการในเร็ว ๆ นี้',
+                'osteoporosis': 'ระบบวินิจฉัยกระดูกพรุนกำลังอยู่ระหว่างการพัฒนา\nคาดว่าจะเปิดให้บริการในเร็ว ๆ นี้',
+                'spine': 'ระบบวินิจฉัยกระดูกสันหลังกำลังอยู่ระหว่างการพัฒนา\nคาดว่าจะเปิดให้บริการในเร็ว ๆ นี้'
+            };
+
+            alert('🔧 ' + messages[type]);
+        }
+
+        // Add some animation on load
+        window.addEventListener('load', () => {
+            const cards = document.querySelectorAll('.disease-card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(50px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.6s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 200);
+            });
+        });
+
+        // Update current time
+        function updateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleString('th-TH', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            if (document.querySelector('.current-time')) {
+                document.querySelector('.current-time').textContent = timeStr;
+            }
+        }
+
+        // Add current time to footer
+        document.addEventListener('DOMContentLoaded', () => {
+            const footer = document.querySelector('.footer');
+            const timeDiv = document.createElement('p');
+            timeDiv.className = 'current-time';
+            timeDiv.style.marginTop = '15px';
+            timeDiv.style.fontSize = '0.85rem';
+            footer.appendChild(timeDiv);
+
+            updateTime();
+            setInterval(updateTime, 60000); // Update every minute
+        });
+    </script>
+</body>
+</html>
