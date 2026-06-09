@@ -945,8 +945,8 @@ def handle_prediction(image_bytes: bytes, sys_key: str):
     
     # Handle single sigmoid output for binary classification (e.g. Stroke model)
     if len(probs) == 1:
-        p0 = float(probs[0])
-        p1 = 1.0 - p0
+        p1 = float(probs[0])  # Normal
+        p0 = 1.0 - p1         # Stroke
         probs = np.array([p0, p1], dtype=np.float32)
 
     # Sort normally first
