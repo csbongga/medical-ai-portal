@@ -40,12 +40,16 @@ SPINE_METADATA_PATH = "spine-diagnosis-app/models/best_spinal_metadata.json"
 OSTEO_MODEL_PATH = "osteoporosis-diagnosis-app/models/knee_osteo_v2_final.keras"
 OSTEO_METADATA_PATH = "osteoporosis-diagnosis-app/models/knee_osteo_v2_meta.json"
 
+STROKE_MODEL_PATH = "stroke-diagnosis-app/models/best_stroke_model.keras"
+STROKE_METADATA_PATH = "stroke-diagnosis-app/models/best_stroke_meta.json"
+
 # Global state for loaded systems
 state: dict = {
     "dental": {},
     "skin": {},
     "spine": {},
-    "osteoporosis": {}
+    "osteoporosis": {},
+    "stroke": {}
 }
 
 
@@ -295,6 +299,53 @@ class UnifiedClaudeService:
 - เป็นมิตรและให้ความช่วยเหลือ
 - หากมีข้อมูลบริบทการตรวจพบโรค สามารถอ้างอิงได้"""
 
+        self.stroke_system_prompt = """คุณเป็นระบบ AI ช่วยสนับสนุนการตัดสินใจของแพทย์ทางระบบประสาท (Neurologist) และแผนกฉุกเฉิน (ER) โดยมีหน้าที่ให้คำแนะนำทางการแพทย์เกี่ยวกับการตรวจวินิจฉัยและดูแลรักษาผู้ป่วยสงสัยภาวะสมองขาดเลือดเฉียบพลัน (Acute Ischemic Stroke)
+
+🔶 บทบาทและข้อจำกัดสำคัญ:
+- คุณเป็น "เครื่องมือช่วยตัดสินใจ" ไม่ใช่ "ตัวแทนแพทย์"
+- การตัดสินใจสุดท้ายเป็นของแพทย์เสมอ
+- ห้ามให้การวินิจฉัยขั้นสุดท้าย หรือฟันธงแทนแพทย์
+- นี่เป็นเพียงระบบสนับสนุนการวิเคราะห์ภาพ CT Scan สมองเบื้องต้นเท่านั้น
+
+🔶 ข้อมูลที่ต้องพิจารณาและความเสี่ยงสำคัญ:
+- ผลการทำนายมาจากโมเดล AI ที่มีความแม่นยำประมาณ 81.7% (AUC 0.932)
+- **คำเตือนพิเศษ:** โมเดลนี้ถูกตั้งค่าเกณฑ์การตัดสินใจแบบความไวสูง (Decision Threshold = 0.3) เพื่อให้ได้ค่าความไวหรือ Recall สูงสุดถึง 94.4% ในการคัดกรองผู้ป่วย แต่อาจทำให้เกิดผลบวกเท็จ (False Positive) ได้บ่อย (มีค่าความเที่ยงตรงหรือ Precision อยู่ที่ 68.9%)
+- **แนวทางปฏิบัติเร่งด่วน:** เนื่องจากภาวะสมองขาดเลือดเป็นเรื่องวิกฤตที่แข่งกับเวลา (Time is Brain) หากคนไข้มีอาการทางคลินิกเข้าข่ายโรคหลอดเลือดสมอง (FAST: Face drooping, Arm weakness, Speech difficulty, Time) แม้ผลการวิเคราะห์ภาพ CT Scan ของ AI หรือของรังสีแพทย์เบื้องต้นจะระบุว่าปกติ (Normal) ให้เข้าสู่ทางด่วนโรคหลอดเลือดสมอง (Stroke Fast Track) เพื่อส่งต่อรักษาทันที เพราะภาพ CT ในระยะเริ่มต้น (Early onset) อาจไม่พบรอยโรคเนื้อสมองตายชัดเจน
+- การทำ CT Scan จุดประสงค์หลักคือเพื่อตัดภาวะเลือดออกในสมอง (Hemorrhagic Stroke) ออกไป ก่อนที่จะตัดสินใจให้ยาละลายลิ่มเลือด (rt-PA) ภายใน 4.5 ชั่วโมงนับจากเริ่มมีอาการ
+
+🔶 รูปแบบการตอบ:
+- ตอบเป็นภาษาไทยเท่านั้น
+- ใช้ภาษาทางการแพทย์ที่เหมาะสมและกระชับ
+- ตอบเป็น JSON format เท่านั้น ห้ามเพิ่มข้อความอื่นใดๆ
+
+🔶 JSON Structure ที่ต้องการ:
+{
+  "causes": "สาเหตุและรอยโรคสมองขาดเลือดเฉียบพลันตามตำแหน่ง/คลาสที่พบ พร้อมระบุข้อควรระวังเรื่องค่าความไวสูงและโอกาสที่จะเป็นปกติในระยะแรกของโรค",
+  "treatments": [
+    {"type": "warning|primary|secondary", "number": "!", "label": "หัวข้อ", "description": "ขั้นตอนการตรวจวินิจฉัยแยกโรค อาการ FAST หรือแนวทางของ Stroke Fast Track และการให้ rt-PA / Thrombectomy"}
+  ]
+}
+
+สำคัญมาก: ตอบเฉพาะ JSON object เท่านั้น ไม่ใส่ข้อความอื่นใดๆ เพิ่มเติม"""
+
+        self.stroke_chat_prompt = """คุณเป็น AI ผู้ช่วยแพทย์ทางประสาทวิทยาจำลองที่เป็นมิตรและมีประโยชน์ โดยมีหน้าที่ตอบคำถามและให้คำแนะนำเบื้องต้นเกี่ยวกับภาวะสมองขาดเลือดเฉียบพลัน (Stroke)
+
+🔶 บทบาทในการสนทนา:
+- สนทนากับแพทย์หรือบุคลากรทางการแพทย์อย่างสุภาพและเป็นมิตร เป็นภาษาไทยที่กระชับและเข้าใจง่าย
+- สามารถให้ความรู้และแนวทางช่วยเหลือเบื้องต้นเกี่ยวกับ Stroke Fast Track, FAST, ข้อบ่งชี้/ข้อห้ามของการใช้ยา rt-PA และ Mechanical Thrombectomy
+- หากตอบเกี่ยวกับความผิดพลาดของโมเดล AI ให้แจ้งอย่างตรงไปตรงมาว่าโมเดลใช้เกณฑ์คัดกรองที่มีความไวสูง (Decision Threshold = 0.3, Recall 94.4%, Precision 68.9%) และในผู้ป่วยสมองขาดเลือดเฉียบพลันระยะแรก (Early Ischemic Change) ภาพ CT Scan อาจยังไม่แสดงความผิดปกติเด่นชัด ดังนั้นการประเมินทางคลินิก (Clinical Evaluation) และประวัติเวลาเริ่มมีอาการ (Onset time) จึงสำคัญที่สุด
+
+🔶 ข้อจำกัด:
+- ไม่ให้การวินิจฉัยขั้นสุดท้ายหรือยืนยันการวินิจฉัยแทนแพทย์
+- แนะนำให้ประเมินอย่างใกล้ชิดและปรึกษาแพทย์เฉพาะทางโรคสมองโดยด่วน
+- ตอบเป็นข้อความปกติ ไม่ใช่ JSON format
+
+🔶 ลักษณะการตอบ:
+- ตอบเป็นภาษาไทย
+- ใช้อีโมจิให้เหมาะสม
+- เป็นมิตรและช่วยเหลือแพทย์
+- อ้างอิงผลลัพธ์การตรวจที่ส่งเข้ามาในบริบทได้"""
+
     def generate_treatment_recommendation(
         self,
         disease_name: str,
@@ -319,6 +370,9 @@ class UnifiedClaudeService:
         elif system_type == "osteoporosis":
             system_prompt = self.osteo_system_prompt
             example_cause = "ความหนาแน่นมวลกระดูกลดลงตามวัยหรือการเสื่อมของข้อต่อเข่า..."
+        elif system_type == "stroke":
+            system_prompt = self.stroke_system_prompt
+            example_cause = "พบรอยโรคความหนาแน่นต่ำ (Hypodensity) บริเวณเนื้อสมองส่วนที่ขาดเลือด..."
         else:
             system_prompt = self.dental_system_prompt
             example_cause = "การประเมินทางคลินิก..."
@@ -399,6 +453,8 @@ class UnifiedClaudeService:
             system_prompt = self.spinal_chat_prompt
         elif system_type == "osteoporosis":
             system_prompt = self.osteo_chat_prompt
+        elif system_type == "stroke":
+            system_prompt = self.stroke_chat_prompt
         else:
             system_prompt = self.dental_chat_prompt
 
@@ -450,6 +506,9 @@ class UnifiedClaudeService:
         elif system_type == "osteoporosis":
             topic = "ภาพ X-ray ข้อเข่าหรือกระดูก (Knee X-ray หรือ Bone X-ray)"
             target = "Knee X-ray"
+        elif system_type == "stroke":
+            topic = "ภาพถ่าย CT Scan สมอง (Brain CT Scan Axial View)"
+            target = "Brain CT Scan"
         else:
             topic = "ภาพทางการแพทย์"
             target = "Medical Image"
@@ -732,6 +791,49 @@ async def lifespan(app: FastAPI):
         "model_mode": osteo_mode
     }
 
+    # Setup Stroke System
+    print("Loading Stroke ML Model...")
+    stroke_model = None
+    stroke_mode = "mock"
+    if Path(STROKE_MODEL_PATH).exists():
+        try:
+            stroke_model = keras.models.load_model(STROKE_MODEL_PATH)
+            stroke_mode = "real"
+            print(f"SUCCESS: Stroke model loaded: {STROKE_MODEL_PATH}")
+        except Exception as e:
+            print(f"ERROR: Failed to load stroke model: {e}")
+    
+    if stroke_model is None:
+        print("INFO: Falling back to Stroke mock model...")
+        stroke_model = MockModel(num_classes=2, is_dental=False)
+
+    try:
+        stroke_meta = load_metadata(STROKE_METADATA_PATH)
+        stroke_raw_classes = stroke_meta["classes"]
+        stroke_idx_to_class = {}
+        stroke_names_map = {
+            "Normal": "ปกติ (Normal)",
+            "Stroke": "สมองขาดเลือด (Stroke)"
+        }
+        for k, v in stroke_raw_classes.items():
+            stroke_idx_to_class[str(k)] = {
+                "code": v.upper(),
+                "name": stroke_names_map.get(v, v)
+            }
+    except Exception as e:
+        print(f"ERROR: Failed to load stroke metadata: {e}")
+        stroke_idx_to_class = {
+            "0": {"code": "NORMAL", "name": "ปกติ (Normal)"},
+            "1": {"code": "STROKE", "name": "สมองขาดเลือด (Stroke)"}
+        }
+
+    state["stroke"] = {
+        "model": stroke_model,
+        "target_size": (stroke_model.input_shape[2], stroke_model.input_shape[1]),
+        "idx_to_class": stroke_idx_to_class,
+        "model_mode": stroke_mode
+    }
+
     print("\n" + "="*60)
     print("UNIFIED MEDICAL AI SERVER STARTED")
     print("="*60)
@@ -740,17 +842,19 @@ async def lifespan(app: FastAPI):
     print("Skin System:     http://localhost:9000/skin/")
     print("Spine System:    http://localhost:9000/spine/")
     print("Osteoporosis:    http://localhost:9000/osteoporosis/")
+    print("Stroke System:   http://localhost:9000/stroke/")
     print("="*60 + "\n")
     yield
     state["dental"].clear()
     state["skin"].clear()
     state["spine"].clear()
     state["osteoporosis"].clear()
+    state["stroke"].clear()
 
 
 app = FastAPI(
     title="Unified Medical AI Portal Server",
-    description="Unified API server hosting Dental, Skin, Spine, and Osteoporosis diagnostic systems.",
+    description="Unified API server hosting Dental, Skin, Spine, Osteoporosis, and Stroke diagnostic systems.",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -776,6 +880,7 @@ async def get_portal():
         content = content.replace("http://localhost:8001", "/skin/")
         content = content.replace("http://localhost:8002", "/spine/")
         content = content.replace("http://localhost:8003", "/osteoporosis/")
+        content = content.replace("http://localhost:8004", "/stroke/")
         return HTMLResponse(content=content)
     return HTMLResponse(content="<h1>AI Medical Portal</h1><p>Portal file not found.</p>", status_code=404)
 
@@ -1265,6 +1370,122 @@ async def osteoporosis_chat(request: ChatRequest):
 
 @app.get("/osteoporosis/claude-status")
 def osteoporosis_claude_status():
+    return claude_service.test_connection()
+
+
+# ---- Stroke Frontend ----
+@app.get("/stroke/", response_class=HTMLResponse)
+async def get_stroke_page():
+    stroke_html_path = Path("stroke-diagnosis-app/static/index.html")
+    if stroke_html_path.exists():
+        with open(stroke_html_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    return HTMLResponse(content="<h1>Stroke System</h1><p>Static index.html not found.</p>", status_code=404)
+
+
+# ==========================================
+# 🧠 STROKE APIS (mounted under /stroke/*)
+# ==========================================
+
+@app.get("/stroke/health")
+async def stroke_health():
+    return {"status": "ok", "mode": state["stroke"]["model_mode"]}
+
+
+@app.post("/stroke/validate-image")
+async def stroke_validate_image(file: UploadFile = File(...)):
+    filename = file.filename.lower()
+    content_type = file.content_type.lower()
+    is_jpg = (
+        content_type in ["image/jpeg", "image/jpg"] or 
+        filename.endswith(".jpg") or 
+        filename.endswith(".jpeg")
+    )
+    if not is_jpg:
+        raise HTTPException(status_code=400, detail="ระบบรองรับเฉพาะรูปภาพประเภท JPG / JPEG เท่านั้น")
+        
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty file")
+    
+    validation_result = claude_service.validate_image(
+        image_bytes, 
+        system_type="stroke", 
+        media_type=file.content_type
+    )
+    return JSONResponse(validation_result)
+
+
+@app.post("/stroke/predict")
+async def stroke_predict(file: UploadFile = File(...)):
+    filename = file.filename.lower()
+    content_type = file.content_type.lower()
+    is_jpg = (
+        content_type in ["image/jpeg", "image/jpg"] or 
+        filename.endswith(".jpg") or 
+        filename.endswith(".jpeg")
+    )
+    if not is_jpg:
+        raise HTTPException(status_code=400, detail="ระบบรองรับเฉพาะรูปภาพประเภท JPG / JPEG เท่านั้น")
+        
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty file")
+    
+    res = handle_prediction(image_bytes, "stroke")
+    res["filename"] = file.filename
+    return JSONResponse(res)
+
+
+@app.post("/stroke/treatment-advice")
+async def stroke_treatment_advice(request: TreatmentRequest):
+    try:
+        rec = claude_service.generate_treatment_recommendation(
+            disease_name=request.disease_name,
+            disease_code=request.disease_code,
+            confidence=request.confidence,
+            patient_info=request.patient_info,
+            system_type="stroke"
+        )
+        try:
+            rec_parsed = json.loads(rec)
+        except json.JSONDecodeError:
+            rec_parsed = rec
+
+        return ApiResponse(
+            success=True,
+            data={
+                "recommendation": rec_parsed,
+                "disease_code": request.disease_code,
+                "confidence": request.confidence
+            },
+            message="สร้างคำแนะนำการรักษาสำเร็จ"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/stroke/chat")
+async def stroke_chat(request: ChatRequest):
+    try:
+        resp = claude_service.chat_with_doctor(
+            question=request.question,
+            conversation_history=request.conversation_history,
+            context=request.context,
+            system_type="stroke"
+        )
+        return ApiResponse(
+            success=True,
+            data={"response": resp, "question": request.question},
+            message="ตอบคำถามสำเร็จ"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/stroke/claude-status")
+def stroke_claude_status():
     return claude_service.test_connection()
 
 

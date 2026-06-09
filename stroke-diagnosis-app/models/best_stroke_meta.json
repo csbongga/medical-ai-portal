@@ -1,0 +1,34 @@
+{
+  "model_name": "stroke_ct_efficientnetb0",
+  "task": "binary_classification",
+  "classes": {
+    "0": "Normal",
+    "1": "Stroke"
+  },
+  "class_order": [
+    "Normal",
+    "Stroke"
+  ],
+  "positive_class": "Stroke",
+  "decision_threshold": 0.3,
+  "threshold_rationale": "chosen on validation for high-recall screening; confirmed on test",
+  "input": {
+    "size": [
+      224,
+      224
+    ],
+    "channels": 3,
+    "color_note": "source images grayscale; converted to RGB via color_mode=rgb",
+    "value_range": "0-255 raw (EfficientNet built-in preprocessing)"
+  },
+  "architecture": "EfficientNetB0 + GAP + Dropout(0.3) + Dense(1, sigmoid)",
+  "training": "2-phase transfer learning; BatchNorm frozen during fine-tune",
+  "dataset": "afridirahman/brain-stroke-ct-image-dataset (2501 imgs, stratified 70/15/15)",
+  "test_metrics": {
+    "auc": 0.932,
+    "stroke_recall": 0.944,
+    "stroke_precision": 0.689,
+    "accuracy": 0.817
+  },
+  "saved_at": "2026-06-05T03:24:01"
+}

@@ -260,10 +260,10 @@
             </div>
 
             <!-- Brain Stroke Card -->
-            <div class="disease-card coming-soon" onclick="showComingSoon('brain')">
+            <div class="disease-card available card-loading" onclick="openSystem('brain')" id="brain-card">
                 <div class="disease-icon">🧠</div>
                 <h3 class="disease-title">สมองขาดเลือด</h3>
-                <span class="disease-status status-coming-soon">⏳ เร็ว ๆ นี้</span>
+                <span class="disease-status status-available">✅ พร้อมใช้งาน</span>
                 <p class="disease-description">
                     ระบบวิเคราะห์ภาพ CT/MRI สมอง เพื่อตรวจหาอาการโรคสมองขาดเลือด
                     และประเมินความรุนแรงของอาการ
@@ -274,8 +274,8 @@
                     <li>ประเมินความรุนแรง</li>
                     <li>แนะนำการดูแลเร่งด่วน</li>
                 </ul>
-                <button class="go-button" disabled>
-                    🔧 กำลังพัฒนา...
+                <button class="go-button" onclick="event.stopPropagation(); openSystem('brain')">
+                    🚀 เข้าสู่ระบบวินิจฉัยสมองขาดเลือด
                 </button>
             </div>
 
@@ -355,6 +355,12 @@
                 case 'osteoporosis':
                     setTimeout(() => {
                         window.location.href = 'http://localhost:8003';
+                    }, 1000);
+                    break;
+
+                case 'brain':
+                    setTimeout(() => {
+                        window.location.href = 'http://localhost:8004';
                     }, 1000);
                     break;
             }
