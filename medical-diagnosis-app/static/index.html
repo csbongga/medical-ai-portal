@@ -548,6 +548,7 @@ async function analyze(){
     const r=await fetch('./predict',{method:'POST',body:form});
     const d=await r.json();
     if(!r.ok){showErr(d.detail||'Server error '+r.status);return;}
+    window.lastData=d;
     lastData=d;
     buildDetect(d);
     buildClassify(d);
@@ -1081,8 +1082,8 @@ function setViewMode(mode,e){
   document.getElementById('btn-gcam').className='vbtn '+(mode==='gcam'?'on':'off');
   
   const img=document.getElementById('xray-img');
-  if(mode==='gcam' && window.lastData && window.lastData.gradcam_image){
-    img.src = "data:image/jpeg;base64," + window.lastData.gradcam_image;
+  if(mode==='gcam' && lastData && lastData.gradcam_image){
+    img.src = "data:image/jpeg;base64," + lastData.gradcam_image;
   } else {
     if(window.origImgSrc){
       img.src = window.origImgSrc;
