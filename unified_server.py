@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 import numpy as np
 import keras
 import tensorflow as tf
+import cv2
 from PIL import Image
 from dotenv import load_dotenv
 import anthropic
@@ -990,6 +991,94 @@ def handle_prediction(image_bytes: bytes, sys_key: str):
     }
 
 
+def generate_gradcam_base64(image_bytes: bytes, model, target_size: tuple, is_mock: bool = False) -> str:
+    try:
+        # Load and preprocess original image
+        img_orig = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        img_resized = img_orig.resize(target_size, Image.LANCZOS)
+        
+        # Keep original image array in BGR for OpenCV
+        img_np = np.array(img_resized, dtype=np.uint8)
+        img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+        
+        if is_mock or not hasattr(model, "layers"):
+            # Generate a mock heatmap centered on the image for mock model
+            height, width = target_size[1], target_size[0]
+            x_grid, y_grid = np.meshgrid(np.linspace(-1, 1, width), np.linspace(-1, 1, height))
+            d = np.sqrt(x_grid*x_grid + y_grid*y_grid)
+            sigma, mu = 0.5, 0.0
+            heatmap_resized = np.exp(-((d-mu)**2 / (2.0 * sigma**2)))
+        else:
+            # Float array for prediction
+            x = np.expand_dims(np.array(img_resized, dtype=np.float32), axis=0)
+            
+            backbone = model.get_layer("efficientnetb0")
+            last_conv_layer_name = "top_activation"
+            
+            # Backbone grad model
+            backbone_grad_model = tf.keras.Model(
+                inputs=backbone.inputs,
+                outputs=[backbone.get_layer(last_conv_layer_name).output, backbone.output]
+            )
+            
+            x_in = x
+            if "augmentation" in [l.name for l in model.layers]:
+                x_in = model.get_layer("augmentation")(x_in)
+                
+            with tf.GradientTape() as tape:
+                conv_outputs, backbone_outputs = backbone_grad_model(x_in)
+                tape.watch(conv_outputs)
+                
+                y = backbone_outputs
+                pool_layers = [l for l in model.layers if "pool" in l.name.lower()]
+                if pool_layers:
+                    y = pool_layers[0](y)
+                
+                dropout_layers = [l for l in model.layers if "dropout" in l.name.lower()]
+                if dropout_layers:
+                    y = dropout_layers[0](y)
+                    
+                dense_layers = [l for l in model.layers if "dense" in l.name.lower()]
+                if dense_layers:
+                    preds = dense_layers[-1](y)
+                else:
+                    return ""
+                
+                # Gradient of Stroke class score (which is 1.0 - preds[0][0]) w.r.t conv features
+                stroke_score = 1.0 - preds[0][0]
+                
+            grads = tape.gradient(stroke_score, conv_outputs)
+            pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+            conv_outputs = conv_outputs[0]
+            
+            # Weighted sum
+            heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
+            heatmap = tf.squeeze(heatmap)
+            
+            # ReLU and normalization
+            heatmap = tf.maximum(heatmap, 0) / (tf.reduce_max(heatmap) + 1e-10)
+            heatmap_np = heatmap.numpy()
+            
+            # Resize heatmap
+            heatmap_resized = cv2.resize(heatmap_np, (target_size[0], target_size[1]))
+        
+        heatmap_uint8 = np.uint8(255 * heatmap_resized)
+        
+        # Color map
+        heatmap_color = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+        
+        # Overlay heatmap on BGR original
+        superimposed_img = cv2.addWeighted(img_bgr, 0.6, heatmap_color, 0.4, 0)
+        
+        # Encode to base64
+        _, buffer = cv2.imencode('.jpg', superimposed_img)
+        b64_str = base64.b64encode(buffer).decode('utf-8')
+        return b64_str
+    except Exception as e:
+        print(f"ERROR: Failed to generate Grad-CAM: {e}")
+        return ""
+
+
 # ---- Claude API Models ----
 class TreatmentRequest(BaseModel):
     disease_name: str
@@ -1454,6 +1543,15 @@ async def stroke_predict(file: UploadFile = File(...)):
     
     res = handle_prediction(image_bytes, "stroke")
     res["filename"] = file.filename
+    
+    # Generate Grad-CAM image
+    model = state["stroke"]["model"]
+    target_size = state["stroke"]["target_size"]
+    is_mock = (state["stroke"]["model_mode"] == "mock")
+    
+    gradcam_b64 = generate_gradcam_base64(image_bytes, model, target_size, is_mock=is_mock)
+    res["gradcam_image"] = gradcam_b64
+    
     return JSONResponse(res)
 
 
