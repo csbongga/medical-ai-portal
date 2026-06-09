@@ -998,23 +998,24 @@ def handle_prediction(image_bytes: bytes, sys_key: str):
 
 def generate_gradcam_base64(image_bytes: bytes, model, target_size: tuple, is_mock: bool = False, sys_key: str = "stroke") -> str:
     try:
-        # Load and preprocess original image
+        # Load original image and get its size
         img_orig = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        img_resized = img_orig.resize(target_size, Image.LANCZOS)
+        orig_size = img_orig.size  # (width, height)
         
-        # Keep original image array in BGR for OpenCV
-        img_np = np.array(img_resized, dtype=np.uint8)
-        img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+        # Keep original image array in BGR for OpenCV (without resizing!)
+        img_orig_np = np.array(img_orig, dtype=np.uint8)
+        img_orig_bgr = cv2.cvtColor(img_orig_np, cv2.COLOR_RGB2BGR)
         
         if is_mock or not hasattr(model, "layers"):
-            # Generate a mock heatmap centered on the image for mock model
-            height, width = target_size[1], target_size[0]
+            # Generate a mock heatmap directly at original size
+            width, height = orig_size[0], orig_size[1]
             x_grid, y_grid = np.meshgrid(np.linspace(-1, 1, width), np.linspace(-1, 1, height))
             d = np.sqrt(x_grid*x_grid + y_grid*y_grid)
             sigma, mu = 0.5, 0.0
             heatmap_resized = np.exp(-((d-mu)**2 / (2.0 * sigma**2)))
         else:
-            # Float array for prediction
+            # Float array for prediction (resized to model's target_size)
+            img_resized = img_orig.resize(target_size, Image.LANCZOS)
             x = np.expand_dims(np.array(img_resized, dtype=np.float32), axis=0)
             
             # Find the backbone (nested sub-model) if present
@@ -1111,16 +1112,16 @@ def generate_gradcam_base64(image_bytes: bytes, model, target_size: tuple, is_mo
             heatmap = tf.maximum(heatmap, 0) / (tf.reduce_max(heatmap) + 1e-10)
             heatmap_np = heatmap.numpy()
             
-            # Resize heatmap to match target size
-            heatmap_resized = cv2.resize(heatmap_np, (target_size[0], target_size[1]))
+            # Resize heatmap to match original image size
+            heatmap_resized = cv2.resize(heatmap_np, (orig_size[0], orig_size[1]))
             
         heatmap_uint8 = np.uint8(255 * heatmap_resized)
         
         # Color map (COLORMAP_JET)
         heatmap_color = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
         
-        # Overlay heatmap on original BGR image
-        superimposed_img = cv2.addWeighted(img_bgr, 0.6, heatmap_color, 0.4, 0)
+        # Overlay heatmap on original BGR image (original size!)
+        superimposed_img = cv2.addWeighted(img_orig_bgr, 0.6, heatmap_color, 0.4, 0)
         
         # Encode to base64
         _, buffer = cv2.imencode('.jpg', superimposed_img)
