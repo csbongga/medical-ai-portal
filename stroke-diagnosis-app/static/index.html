@@ -497,8 +497,8 @@ function buildDetect(d){
   
   // Use data matching class code/name
   let dKey = top.code;
-  if (top.code === "0" || top.code === "NORMAL") dKey = "Normal";
-  else if (top.code === "1" || top.code === "STROKE") dKey = "Stroke";
+  if (top.code === "0" || top.code === "STROKE") dKey = "Stroke";
+  else if (top.code === "1" || top.code === "NORMAL") dKey = "Normal";
 
   const staticD = DD[dKey];
   if(staticD) {
@@ -733,8 +733,8 @@ function buildClassify(d){
     el.className='pitem';
     
     let classLabel = p.name;
-    if (p.code === "0" || p.code === "NORMAL") classLabel = "Normal (ปกติ)";
-    else if (p.code === "1" || p.code === "STROKE") classLabel = "Stroke (สมองขาดเลือด)";
+    if (p.code === "0" || p.code === "STROKE") classLabel = "Stroke (สมองขาดเลือด)";
+    else if (p.code === "1" || p.code === "NORMAL") classLabel = "Normal (ปกติ)";
 
     el.innerHTML=`<div class="ph"><span class="pname"><span class="pcode">${esc(p.code)}</span>${esc(classLabel)}</span><span class="ppct">${p.probability_pct}%</span></div><div class="ptrack"><div class="pbar ${bc}" style="width:0%" data-pct="${p.probability_pct}"></div></div>`;
     pl.appendChild(el);

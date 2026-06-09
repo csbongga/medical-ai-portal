@@ -812,8 +812,8 @@ async def lifespan(app: FastAPI):
         stroke_raw_classes = stroke_meta["classes"]
         stroke_idx_to_class = {}
         stroke_names_map = {
-            "Normal": "ปกติ (Normal)",
-            "Stroke": "สมองขาดเลือด (Stroke)"
+            "Stroke": "สมองขาดเลือด (Stroke)",
+            "Normal": "ปกติ (Normal)"
         }
         for k, v in stroke_raw_classes.items():
             stroke_idx_to_class[str(k)] = {
@@ -823,8 +823,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"ERROR: Failed to load stroke metadata: {e}")
         stroke_idx_to_class = {
-            "0": {"code": "NORMAL", "name": "ปกติ (Normal)"},
-            "1": {"code": "STROKE", "name": "สมองขาดเลือด (Stroke)"}
+            "0": {"code": "STROKE", "name": "สมองขาดเลือด (Stroke)"},
+            "1": {"code": "NORMAL", "name": "ปกติ (Normal)"}
         }
 
     state["stroke"] = {
@@ -945,8 +945,8 @@ def handle_prediction(image_bytes: bytes, sys_key: str):
     
     # Handle single sigmoid output for binary classification (e.g. Stroke model)
     if len(probs) == 1:
-        p1 = float(probs[0])
-        p0 = 1.0 - p1
+        p0 = float(probs[0])
+        p1 = 1.0 - p0
         probs = np.array([p0, p1], dtype=np.float32)
 
     # Sort normally first
@@ -964,14 +964,14 @@ def handle_prediction(image_bytes: bytes, sys_key: str):
 
     # Special threshold sorting for Stroke model
     if sys_key == "stroke":
-        # Index 1 is Stroke, Index 0 is Normal
-        stroke_prob = float(probs[1])
+        # Index 0 is Stroke, Index 1 is Normal
+        stroke_prob = float(probs[0])
         if stroke_prob >= 0.3:
             # Sort Stroke first
-            predictions = sorted(predictions_list, key=lambda x: x["index"] == 1, reverse=True)
+            predictions = sorted(predictions_list, key=lambda x: x["index"] == 0, reverse=True)
         else:
             # Sort Normal first
-            predictions = sorted(predictions_list, key=lambda x: x["index"] == 0, reverse=True)
+            predictions = sorted(predictions_list, key=lambda x: x["index"] == 1, reverse=True)
     else:
         # Standard sort by probability
         predictions = sorted(predictions_list, key=lambda val: val["probability"], reverse=True)

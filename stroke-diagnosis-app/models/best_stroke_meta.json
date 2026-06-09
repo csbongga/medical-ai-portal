@@ -2,12 +2,12 @@
   "model_name": "stroke_ct_efficientnetb0",
   "task": "binary_classification",
   "classes": {
-    "0": "Normal",
-    "1": "Stroke"
+    "0": "Stroke",
+    "1": "Normal"
   },
   "class_order": [
-    "Normal",
-    "Stroke"
+    "Stroke",
+    "Normal"
   ],
   "positive_class": "Stroke",
   "decision_threshold": 0.3,
