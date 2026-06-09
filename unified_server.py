@@ -980,6 +980,10 @@ def handle_prediction(image_bytes: bytes, sys_key: str):
     for rank, item in enumerate(predictions, 1):
         item["rank"] = rank
 
+    # Generate Grad-CAM image automatically for all systems
+    is_mock = (sys_state["model_mode"] == "mock")
+    gradcam_b64 = generate_gradcam_base64(image_bytes, model, target_size, is_mock=is_mock, sys_key=sys_key)
+
     return {
         "model_mode": sys_state["model_mode"],
         "top_prediction": {
@@ -988,10 +992,11 @@ def handle_prediction(image_bytes: bytes, sys_key: str):
             "probability_pct": predictions[0]["probability_pct"],
         },
         "all_predictions": predictions,
+        "gradcam_image": gradcam_b64,
     }
 
 
-def generate_gradcam_base64(image_bytes: bytes, model, target_size: tuple, is_mock: bool = False) -> str:
+def generate_gradcam_base64(image_bytes: bytes, model, target_size: tuple, is_mock: bool = False, sys_key: str = "stroke") -> str:
     try:
         # Load and preprocess original image
         img_orig = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -1012,46 +1017,93 @@ def generate_gradcam_base64(image_bytes: bytes, model, target_size: tuple, is_mo
             # Float array for prediction
             x = np.expand_dims(np.array(img_resized, dtype=np.float32), axis=0)
             
-            backbone = model.get_layer("efficientnetb0")
-            last_conv_layer_name = "top_activation"
+            # Find the backbone (nested sub-model) if present
+            backbone_layer = None
+            for layer in model.layers:
+                if "efficientnet" in layer.name.lower():
+                    backbone_layer = layer
+                    break
             
-            # Backbone grad model
-            backbone_grad_model = tf.keras.Model(
-                inputs=backbone.inputs,
-                outputs=[backbone.get_layer(last_conv_layer_name).output, backbone.output]
-            )
-            
-            x_in = x
-            if "augmentation" in [l.name for l in model.layers]:
-                x_in = model.get_layer("augmentation")(x_in)
+            if backbone_layer is not None:
+                # Nested backbone case (e.g. skin, spine, osteoporosis, stroke)
+                backbone = backbone_layer
+                last_conv_layer_name = "top_activation"
                 
-            with tf.GradientTape() as tape:
-                conv_outputs, backbone_outputs = backbone_grad_model(x_in)
-                tape.watch(conv_outputs)
+                # Check if top_activation layer exists in backbone
+                if not any(l.name == last_conv_layer_name for l in backbone.layers):
+                    # Try to find the last conv or activation layer in backbone
+                    for l in reversed(backbone.layers):
+                        if "act" in l.name.lower() or "conv" in l.name.lower():
+                            last_conv_layer_name = l.name
+                            break
                 
-                y = backbone_outputs
-                pool_layers = [l for l in model.layers if "pool" in l.name.lower()]
-                if pool_layers:
-                    y = pool_layers[0](y)
+                # Build the backbone grad model
+                backbone_grad_model = tf.keras.Model(
+                    inputs=backbone.inputs,
+                    outputs=[backbone.get_layer(last_conv_layer_name).output, backbone.output]
+                )
                 
-                dropout_layers = [l for l in model.layers if "dropout" in l.name.lower()]
-                if dropout_layers:
-                    y = dropout_layers[0](y)
+                x_in = x
+                backbone_index = model.layers.index(backbone)
+                for layer in model.layers[:backbone_index]:
+                    # Run pre-backbone layers (augmentation, normalization, rescaling, etc.)
+                    if "input" not in layer.name.lower():
+                        x_in = layer(x_in)
+                
+                with tf.GradientTape() as tape:
+                    conv_outputs, backbone_outputs = backbone_grad_model(x_in)
+                    tape.watch(conv_outputs)
                     
-                dense_layers = [l for l in model.layers if "dense" in l.name.lower()]
-                if dense_layers:
-                    preds = dense_layers[-1](y)
-                else:
-                    return ""
+                    # Run the remaining layers of the outer model in sequence
+                    y = backbone_outputs
+                    for layer in model.layers[backbone_index + 1:]:
+                        y = layer(y)
+                    preds = y
+                    
+                    # Calculate target score
+                    if preds.shape[-1] == 1:
+                        if sys_key == "stroke":
+                            target_score = 1.0 - preds[0][0]
+                        else:
+                            prob = preds[0][0]
+                            if prob >= 0.5:
+                                target_score = prob
+                            else:
+                                target_score = 1.0 - prob
+                    else:
+                        class_idx = tf.argmax(preds[0])
+                        target_score = preds[0][class_idx]
+            else:
+                # Flat model case (e.g. dental)
+                last_conv_layer_name = "top_activation"
+                if not any(l.name == last_conv_layer_name for l in model.layers):
+                    # Try to find the last conv or activation layer in the model
+                    for l in reversed(model.layers):
+                        if "act" in l.name.lower() or "conv" in l.name.lower():
+                            last_conv_layer_name = l.name
+                            break
                 
-                # Gradient of Stroke class score (which is 1.0 - preds[0][0]) w.r.t conv features
-                stroke_score = 1.0 - preds[0][0]
+                grad_model = tf.keras.Model(
+                    inputs=model.inputs,
+                    outputs=[model.get_layer(last_conv_layer_name).output, model.output]
+                )
                 
-            grads = tape.gradient(stroke_score, conv_outputs)
+                with tf.GradientTape() as tape:
+                    conv_outputs, preds = grad_model(x)
+                    tape.watch(conv_outputs)
+                    
+                    # Calculate target score
+                    if preds.shape[-1] == 1:
+                        target_score = preds[0][0]
+                    else:
+                        class_idx = tf.argmax(preds[0])
+                        target_score = preds[0][class_idx]
+            
+            grads = tape.gradient(target_score, conv_outputs)
             pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
             conv_outputs = conv_outputs[0]
             
-            # Weighted sum
+            # Weighted sum of feature maps
             heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
             heatmap = tf.squeeze(heatmap)
             
@@ -1059,15 +1111,15 @@ def generate_gradcam_base64(image_bytes: bytes, model, target_size: tuple, is_mo
             heatmap = tf.maximum(heatmap, 0) / (tf.reduce_max(heatmap) + 1e-10)
             heatmap_np = heatmap.numpy()
             
-            # Resize heatmap
+            # Resize heatmap to match target size
             heatmap_resized = cv2.resize(heatmap_np, (target_size[0], target_size[1]))
-        
+            
         heatmap_uint8 = np.uint8(255 * heatmap_resized)
         
-        # Color map
+        # Color map (COLORMAP_JET)
         heatmap_color = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
         
-        # Overlay heatmap on BGR original
+        # Overlay heatmap on original BGR image
         superimposed_img = cv2.addWeighted(img_bgr, 0.6, heatmap_color, 0.4, 0)
         
         # Encode to base64
@@ -1075,7 +1127,7 @@ def generate_gradcam_base64(image_bytes: bytes, model, target_size: tuple, is_mo
         b64_str = base64.b64encode(buffer).decode('utf-8')
         return b64_str
     except Exception as e:
-        print(f"ERROR: Failed to generate Grad-CAM: {e}")
+        print(f"ERROR: Failed to generate Grad-CAM for sys_key={sys_key}: {e}")
         return ""
 
 
@@ -1543,14 +1595,6 @@ async def stroke_predict(file: UploadFile = File(...)):
     
     res = handle_prediction(image_bytes, "stroke")
     res["filename"] = file.filename
-    
-    # Generate Grad-CAM image
-    model = state["stroke"]["model"]
-    target_size = state["stroke"]["target_size"]
-    is_mock = (state["stroke"]["model_mode"] == "mock")
-    
-    gradcam_b64 = generate_gradcam_base64(image_bytes, model, target_size, is_mock=is_mock)
-    res["gradcam_image"] = gradcam_b64
     
     return JSONResponse(res)
 

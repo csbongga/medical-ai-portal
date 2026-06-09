@@ -445,7 +445,8 @@ function onFile(e){
   }
   curFile=f;
   const img=document.getElementById('xray-img');
-  img.src=URL.createObjectURL(f);
+  window.origImgSrc = URL.createObjectURL(f);
+  img.src=window.origImgSrc;
   img.style.display='block';
   document.getElementById('vempty').style.display='none';
   document.getElementById('vlabel-tr').classList.remove('show');
@@ -882,14 +883,17 @@ document.addEventListener('DOMContentLoaded', function(){
 
 // ── VIEWER BUTTONS ──
 function setViewMode(mode,e){
-  e.stopPropagation();
+  if(e) e.stopPropagation();
   document.getElementById('btn-orig').className='vbtn '+(mode==='orig'?'on':'off');
   document.getElementById('btn-info').className='vbtn '+(mode==='info'?'on':'off');
-  if(mode==='info'){
-    setTimeout(()=>{
-      document.getElementById('btn-orig').className='vbtn on';
-      document.getElementById('btn-info').className='vbtn off';
-    },1800);
+  
+  const img=document.getElementById('xray-img');
+  if(mode==='info' && window.lastData && window.lastData.gradcam_image){
+    img.src = "data:image/jpeg;base64," + window.lastData.gradcam_image;
+  } else {
+    if(window.origImgSrc){
+      img.src = window.origImgSrc;
+    }
   }
 }
 
